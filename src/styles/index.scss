@@ -1,0 +1,5 @@
+// ai-chat-ui · 样式总入口
+// build 时由 src/index.ts 引入，产物为单一 ai-chat-ui.css
+// 消费方：import 'ai-chat-ui/style.css'
+@use './theme';
+@use './base';

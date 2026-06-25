@@ -1,0 +1,84 @@
+// ============================================================
+// ai-chat-ui · SCSS 工具集（mixin / function）
+// 本文件不输出任何 CSS，仅提供可复用的 SCSS 工具。
+// 经 vite.config.ts 的 additionalData 全局注入，组件内可直接使用。
+// ============================================================
+
+// 美化滚动条
+@mixin acu-scrollbar($size: 6px) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--acu-border-strong) transparent;
+
+  &::-webkit-scrollbar {
+    width: $size;
+    height: $size;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--acu-border-strong);
+    border-radius: calc($size / 2);
+    &:hover {
+      background-color: var(--acu-text-muted);
+    }
+  }
+}
+
+// 单行 / 多行文本省略
+@mixin acu-ellipsis($lines: 1) {
+  @if $lines == 1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  } @else {
+    display: -webkit-box;
+    -webkit-line-clamp: $lines;
+    line-clamp: $lines;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+// flex 居中
+@mixin acu-flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// 可访问焦点环
+@mixin acu-focus-ring($offset: 2px) {
+  outline: none;
+  &:focus-visible {
+    box-shadow: 0 0 0 $offset var(--acu-bg), 0 0 0 calc($offset + 2px) var(--acu-primary);
+  }
+}
+
+// 卡片表面（背景 + 边框 + 圆角）
+@mixin acu-surface {
+  background: var(--acu-surface);
+  border: 1px solid var(--acu-border);
+  border-radius: var(--acu-radius);
+}
+
+// 按钮基础
+@mixin acu-btn-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--acu-radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--acu-font-size-base);
+  line-height: 1;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, opacity 0.15s ease;
+  user-select: none;
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}

@@ -1,0 +1,151 @@
+// ============================================================
+// ai-chat-ui · 主题变量（CSS Custom Properties）
+// 消费方覆盖任意变量即可换肤；切换深浅色：在容器设置 data-theme="dark"
+// 命名前缀 --acu- (ai-chat-ui) 避免与宿主项目冲突
+// ============================================================
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  // —— 基础色板 ——
+  --acu-bg: #ffffff;
+  --acu-surface: #f7f7f8;
+  --acu-surface-2: #ededf0;
+  --acu-surface-hover: #f0f0f3;
+
+  // —— 文字 ——
+  --acu-text: #18181b;
+  --acu-text-secondary: #52525b;
+  --acu-text-muted: #a1a1aa;
+
+  // —— 边框 ——
+  --acu-border: #e7e7ea;
+  --acu-border-strong: #d4d4d8;
+
+  // —— 主色 ——
+  --acu-primary: #6366f1;
+  --acu-primary-hover: #5457e5;
+  --acu-primary-active: #4f46e5;
+  --acu-primary-contrast: #ffffff;
+  --acu-primary-soft: rgba(99, 102, 241, 0.09);
+  --acu-primary-soft-hover: rgba(99, 102, 241, 0.14);
+
+  // —— 气泡 ——
+  --acu-bubble-user-bg: #6366f1;
+  --acu-bubble-user-text: #ffffff;
+  --acu-bubble-assistant-bg: #f7f7f8;
+  --acu-bubble-assistant-text: #18181b;
+
+  // —— 思考块 ——
+  --acu-thinking-bg: #fafafa;
+  --acu-thinking-text: #71717a;
+  --acu-thinking-border: #ececef;
+  --acu-thinking-icon: #a1a1aa;
+
+  // —— 代码 ——
+  --acu-code-bg: #f6f8fa;
+  --acu-code-text: #24292f;
+  --acu-code-border: #e4e4e7;
+  --acu-code-inline-bg: rgba(175, 184, 193, 0.2);
+  --acu-code-header-bg: #eceef1;
+
+  // —— 状态色 ——
+  --acu-error: #ef4444;
+  --acu-error-soft: rgba(239, 68, 68, 0.1);
+  --acu-success: #10b981;
+  --acu-warning: #f59e0b;
+
+  // —— 阴影 ——
+  --acu-shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.05);
+  --acu-shadow: 0 4px 16px rgba(24, 24, 27, 0.08);
+  --acu-shadow-lg: 0 12px 32px rgba(24, 24, 27, 0.12);
+
+  // —— 圆角 ——
+  --acu-radius-xs: 4px;
+  --acu-radius-sm: 8px;
+  --acu-radius: 12px;
+  --acu-radius-lg: 16px;
+  --acu-radius-xl: 20px;
+  --acu-radius-full: 9999px;
+
+  // —— 间距 ——
+  --acu-space-1: 4px;
+  --acu-space-2: 8px;
+  --acu-space-3: 12px;
+  --acu-space-4: 16px;
+  --acu-space-5: 20px;
+  --acu-space-6: 24px;
+  --acu-space-8: 32px;
+
+  // —— 字体 ——
+  --acu-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial,
+    sans-serif;
+  --acu-font-mono: 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+  --acu-font-size-xs: 12px;
+  --acu-font-size-sm: 13px;
+  --acu-font-size-base: 14px;
+  --acu-font-size-md: 15px;
+  --acu-font-size-lg: 16px;
+  --acu-font-size-xl: 18px;
+  --acu-line-height: 1.65;
+
+  // —— 动效 ——
+  --acu-duration-fast: 0.12s;
+  --acu-duration: 0.2s;
+  --acu-easing: cubic-bezier(0.4, 0, 0.2, 1);
+
+  // —— 布局 ——
+  --acu-max-width: 768px;
+  --acu-avatar-size: 32px;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --acu-bg: #18181b;
+  --acu-surface: #27272a;
+  --acu-surface-2: #34343a;
+  --acu-surface-hover: #2f2f35;
+
+  --acu-text: #f4f4f5;
+  --acu-text-secondary: #a1a1aa;
+  --acu-text-muted: #71717a;
+
+  --acu-border: #323236;
+  --acu-border-strong: #52525b;
+
+  --acu-primary: #818cf8;
+  --acu-primary-hover: #6366f1;
+  --acu-primary-active: #5457e5;
+  --acu-primary-contrast: #18181b;
+  --acu-primary-soft: rgba(129, 140, 248, 0.14);
+  --acu-primary-soft-hover: rgba(129, 140, 248, 0.22);
+
+  --acu-bubble-user-bg: #6366f1;
+  --acu-bubble-user-text: #ffffff;
+  --acu-bubble-assistant-bg: #27272a;
+  --acu-bubble-assistant-text: #f4f4f5;
+
+  --acu-thinking-bg: #1f1f23;
+  --acu-thinking-text: #a1a1aa;
+  --acu-thinking-border: #2e2e33;
+  --acu-thinking-icon: #71717a;
+
+  --acu-code-bg: #0d1117;
+  --acu-code-text: #e6edf3;
+  --acu-code-border: #30363d;
+  --acu-code-inline-bg: rgba(110, 118, 129, 0.4);
+  --acu-code-header-bg: #161b22;
+
+  --acu-error: #f87171;
+  --acu-error-soft: rgba(248, 113, 113, 0.14);
+  --acu-success: #34d399;
+  --acu-warning: #fbbf24;
+
+  --acu-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --acu-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --acu-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
