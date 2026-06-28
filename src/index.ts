@@ -13,6 +13,7 @@ export { default as ThinkingBlock } from './components/ThinkingBlock/ThinkingBlo
 export { default as WelcomeScreen } from './components/WelcomeScreen/WelcomeScreen.vue'
 export { default as ChatInput } from './components/ChatInput/ChatInput.vue'
 export { default as MarkdownRenderer } from './components/MarkdownRenderer/MarkdownRenderer.vue'
+export { default as FollowupSuggestions } from './components/FollowupSuggestions/FollowupSuggestions.vue'
 
 // composables
 export { useMarkdown, isShikiReady, ensureHighlighter } from './composables/useMarkdown'
@@ -29,6 +30,8 @@ export type {
   ChatAttachment,
   ChatMessage,
   PresetQuestion,
+  FollowupInput,
+  FollowupConfig,
   StreamChunkType,
   StreamChunk,
   ThemeMode,
@@ -42,6 +45,7 @@ import ChatContainer from './components/ChatContainer/ChatContainer.vue'
 
 const install = (app: App): void => {
   app.component('ChatContainer', ChatContainer)
+  // 插件用户可选用 app.use(AiChatUi) 全局注册主组件
 }
 
 export default { install }

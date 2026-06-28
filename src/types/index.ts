@@ -64,6 +64,41 @@ export interface PresetQuestion {
   icon?: string
 }
 
+/** 追问建议配置项。两种简写形式：直接传数组，或传完整 config 对象 */
+export type FollowupInput = PresetQuestion[] | FollowupConfig
+
+/**
+ * 追问建议配置
+ * - 静态：传 `items`，每条 assistant 完成后展示同样的追问
+ * - 动态：传 `provider(lastMessage, history)`，组件会在每轮 assistant 完成时异步调用
+ */
+export interface FollowupConfig {
+  /** 静态追问列表（与 provider 二选一；同时传时优先 items） */
+  items?: PresetQuestion[]
+  /**
+   * 动态生成追问建议
+   * @param lastMessage 最新一条消息（通常是 assistant 的回复）
+   * @param history 完整消息历史
+   */
+  provider?: (
+    lastMessage: ChatMessage,
+    history: ChatMessage[]
+  ) => PresetQuestion[] | Promise<PresetQuestion[]>
+  /** 区段标题，默认"继续追问" */
+  title?: string
+  /**
+   * 触发模式
+   * - 'after-answer'：每条 assistant 完成（status === 'done'）后展示
+   * - 'latest'：仅展示最后一条消息对应的追问（避免历史消息下挤满屏幕）
+   * @default 'latest'
+   */
+  mode?: 'after-answer' | 'latest'
+  /** 是否在 assistant 正在流式输出时也展示（默认 false：等回复完成再展示） */
+  showDuringStreaming?: boolean
+  /** 点击后是否自动填充到输入框（false=直接发送）。默认 true（直接发送） */
+  autoSend?: boolean
+}
+
 /** 流式 chunk 类型 */
 export type StreamChunkType = 'content' | 'reasoning' | 'done' | 'error'
 

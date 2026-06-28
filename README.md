@@ -101,16 +101,84 @@ async function onSend({ text, files }: { text: string; files: any[] }) {
 | `theme`             | `'light' \| 'dark' \| 'auto'` | `'light'`  | 主题                  |
 | `disabled`          | `boolean`                  | `false`    | 禁用输入（生成中）    |
 | `uploadConfig`      | `Partial<UploadConfig>`    | `{}`       | 附件上传配置          |
+| `followup`          | `FollowupInput`            | -          | 追问建议（详见下方）  |
 
-| Event     | Payload                                      | 说明           |
-| --------- | -------------------------------------------- | -------------- |
-| `send`    | `{ text: string; files: SelectedFile[] }`    | 用户发送       |
-| `select`  | `PresetQuestion`                             | 点击预设问题   |
-| `retry`   | `ChatMessage`                                | 重试失败消息   |
+| Event              | Payload                                                | 说明             |
+| ------------------ | ------------------------------------------------------ | ---------------- |
+| `send`             | `{ text: string; files: SelectedFile[] }`              | 用户发送         |
+| `select`           | `PresetQuestion`                                       | 点击预设问题     |
+| `retry`            | `ChatMessage`                                          | 重试失败消息     |
+| `followup-select`  | `(question: PresetQuestion, source: ChatMessage)`      | 点击追问建议     |
 
 ### 其他可独立使用的组件
 
-`MessageList`、`MessageBubble`、`ThinkingBlock`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer` 均已导出，可单独使用。
+`MessageList`、`MessageBubble`、`ThinkingBlock`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer`、`FollowupSuggestions` 均已导出，可单独使用。
+
+## 追问建议
+
+每轮 assistant 回复完成后，会在该条气泡下方独立区域展示一组「继续追问」按钮。宽度自适应内容，超过上限会单行省略。
+
+### 基础用法（静态追问）
+
+直接把数组传给 `followup`：
+
+```vue
+<ChatContainer
+  :messages="messages"
+  :followup="[
+    { id: '1', label: '举个例子', prompt: '能举个例子吗？' },
+    { id: '2', label: '深入讲讲原理', prompt: '详细讲讲它的原理' },
+    { id: '3', label: '和其他方案对比', prompt: '和同类方案相比呢？' }
+  ]"
+/>
+```
+
+点击追问按钮会自动触发 `send` 事件（payload 为 `{ text: q.prompt, files: [] }`），等同于用户手动发送。
+
+### 高级用法（动态生成）
+
+传 `FollowupConfig` 对象，启用 `provider` 异步生成追问。每轮 assistant 完成时会自动调用：
+
+```vue
+<ChatContainer
+  :messages="messages"
+  :followup="{
+    title: '你可能还想问',
+    mode: 'latest',
+    provider: async (lastMessage, history) => {
+      const res = await fetch('/api/followup', {
+        method: 'POST',
+        body: JSON.stringify({ last: lastMessage, history })
+      })
+      return (await res.json()).questions
+    }
+  }"
+  @followup-select="(q, source) => console.log('clicked', q, source)"
+/>
+```
+
+### `FollowupConfig` 字段
+
+| 字段                  | 类型                                              | 默认值            | 说明 |
+| --------------------- | ------------------------------------------------- | ----------------- | ---- |
+| `items`               | `PresetQuestion[]`                                | -                 | 静态追问列表；与 `provider` 同时传时优先用 items |
+| `provider`            | `(last, history) => PresetQuestion[] \| Promise`  | -                 | 动态生成追问；返回 `Promise` 时会展示 loading 骨架 |
+| `title`               | `string`                                          | `'继续追问'`      | 区段标题 |
+| `mode`                | `'after-answer' \| 'latest'`                      | `'latest'`        | `'latest'` 只展示最后一条消息的追问；`'after-answer'` 每条完成的 assistant 都展示 |
+| `showDuringStreaming` | `boolean`                                         | `false`           | 是否在 assistant 流式输出过程中就展示（默认等回复完成） |
+| `autoSend`            | `boolean`                                         | `true`            | 点击追问是否自动作为用户消息发送；设为 `false` 则只触发 `followup-select` 事件 |
+
+### 单独使用 `<FollowupSuggestions>`
+
+如果想完全自定义位置 / 嵌入其他场景，直接用组件：
+
+```vue
+<FollowupSuggestions
+  :items="[{ id: '1', label: '再讲讲', prompt: '再讲讲' }]"
+  title="你可能还想问"
+  @select="onPick"
+/>
+```
 
 ## 主题定制
 

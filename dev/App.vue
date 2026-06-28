@@ -6,6 +6,9 @@
         <span class="demo-title">ai-chat-ui · 组件演示</span>
       </div>
       <div class="demo-actions">
+        <button class="demo-btn" @click="toggleFollowup">
+          追问：{{ followupModeLabel }}
+        </button>
         <button class="demo-btn" @click="clearMessages">清空</button>
         <button class="demo-btn demo-btn--primary" @click="toggleTheme">
           主题：{{ theme }}
@@ -23,16 +26,18 @@
         :theme="theme"
         :disabled="busy"
         :upload-config="{ enabled: true, multiple: true, accept: 'image/*,.pdf,.zip' }"
+        :followup="followup"
         @send="onSend"
         @select="onSelect"
         @retry="onRetry"
+        @followup-select="onFollowupSelect"
       />
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import {
   ChatContainer,
   useStreaming,
@@ -41,7 +46,8 @@ import {
   type ChatAttachment,
   type PresetQuestion,
   type ThemeMode,
-  type SelectedFile
+  type SelectedFile,
+  type FollowupConfig
 } from '../src'
 
 const messages = ref<ChatMessage[]>([])
@@ -56,10 +62,54 @@ const presetQuestions: PresetQuestion[] = [
   { id: 'q4', label: '深色模式怎么用', prompt: '深色模式如何配置？' }
 ]
 
+/**
+ * 演示：动态生成追问建议（按上一轮 assistant 内容关键字匹配返回不同追问）。
+ * 真实场景下可调用大模型 / 后端推荐接口。
+ */
+const dynamicFollowup: FollowupConfig = {
+  title: '继续追问',
+  mode: 'latest',
+  provider: async (_last: ChatMessage, _history: ChatMessage[]) => {
+    // 模拟接口耗时
+    await new Promise((r) => setTimeout(r, 600))
+    return [
+      { id: 'f1', label: '能给个完整示例代码吗？', prompt: '给一个最小可运行的完整示例代码' },
+      { id: 'f2', label: '讲讲底层实现', prompt: '它在底层是怎么实现的？' },
+      { id: 'f3', label: '和其他库对比', prompt: '和同类组件库相比有什么优势？' }
+    ]
+  }
+}
+
+/** 演示：完全静态的追问列表（provider 不传时使用） */
+const staticFollowup: PresetQuestion[] = [
+  { id: 's1', label: '再来一个', prompt: '能再讲讲其他特性吗？' },
+  { id: 's2', label: '怎么自定义主题？', prompt: '怎么自定义主题颜色？' },
+  { id: 's3', label: '支持多语言吗？', prompt: '支持多语言吗？' },
+  // 用来测试宽度自适应上限：长文字
+  { id: 's4', label: '如果我想让它支持语音输入，或者在移动端键盘弹起时让输入框自适应上移，应该怎么接入这套组件库？', prompt: '...' }
+] 
+
+// 切换 followup 模式：动态 ↔ 静态 ↔ 关闭
+const followupMode = ref<'dynamic' | 'static' | 'off'>('dynamic')
+const followup = computed<FollowupConfig | PresetQuestion[] | undefined>(() => {
+  if (followupMode.value === 'off') return undefined
+  if (followupMode.value === 'static') return staticFollowup
+  return dynamicFollowup
+})
+
 function toggleTheme() {
   const order: (ThemeMode | 'auto')[] = ['light', 'dark', 'auto']
   const idx = order.indexOf(theme.value)
   theme.value = order[(idx + 1) % order.length]
+}
+
+const followupModeLabel = computed(() => {
+  return { dynamic: '动态', static: '静态', off: '关闭' }[followupMode.value]
+})
+function toggleFollowup() {
+  const order: ('dynamic' | 'static' | 'off')[] = ['dynamic', 'static', 'off']
+  const idx = order.indexOf(followupMode.value)
+  followupMode.value = order[(idx + 1) % order.length]
 }
 
 function clearMessages() {
@@ -101,6 +151,12 @@ async function onSend({ text, files }: { text: string; files: SelectedFile[] }) 
 
 function onSelect(q: PresetQuestion) {
   onSend({ text: q.prompt, files: [] })
+}
+
+function onFollowupSelect(q: PresetQuestion, _source: ChatMessage) {
+  // 这里仅打印：ChatContainer 已经默认会发出 send 事件
+  // eslint-disable-next-line no-console
+  console.log('[followup clicked]', q)
 }
 
 function onRetry(msg: ChatMessage) {

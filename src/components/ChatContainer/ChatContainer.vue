@@ -22,7 +22,9 @@
         :assistant-avatar="assistantAvatar"
         :user-avatar="userAvatar"
         :show-avatar="showAvatar"
+        :followup="followup"
         @retry="(m) => $emit('retry', m)"
+        @followup-select="onFollowupSelect"
       />
     </div>
 
@@ -39,7 +41,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import type { ChatMessage, PresetQuestion, ThemeMode, UploadConfig, SelectedFile } from '@/types'
+import type {
+  ChatMessage,
+  PresetQuestion,
+  ThemeMode,
+  UploadConfig,
+  SelectedFile,
+  FollowupInput
+} from '@/types'
 import MessageList from '@/components/MessageList/MessageList.vue'
 import WelcomeScreen from '@/components/WelcomeScreen/WelcomeScreen.vue'
 import ChatInput from '@/components/ChatInput/ChatInput.vue'
@@ -70,6 +79,12 @@ const props = withDefaults(
     disabled?: boolean
     /** 附件上传配置 */
     uploadConfig?: Partial<UploadConfig>
+    /**
+     * 追问建议。
+     * - 传数组：静态追问，每条 assistant 完成都展示同样的卡片
+     * - 传对象：可启用 provider 动态生成、title、mode 等高级配置
+     */
+    followup?: FollowupInput
   }>(),
   {
     presetQuestions: () => [],
@@ -82,7 +97,8 @@ const props = withDefaults(
     theme: 'light',
     placeholder: '输入消息，Enter 发送，Shift+Enter 换行',
     disabled: false,
-    uploadConfig: () => ({})
+    uploadConfig: () => ({}),
+    followup: undefined
   }
 )
 
@@ -90,6 +106,8 @@ const emit = defineEmits<{
   (e: 'send', payload: { text: string; files: SelectedFile[] }): void
   (e: 'retry', message: ChatMessage): void
   (e: 'select', question: PresetQuestion): void
+  /** 追问被点击；payload 是被点击的 PresetQuestion */
+  (e: 'followup-select', question: PresetQuestion, source: ChatMessage): void
 }>()
 
 const listRef = ref<InstanceType<typeof MessageList> | null>(null)
@@ -119,12 +137,21 @@ onBeforeUnmount(() => {
   if (mq) mq.removeEventListener('change', updateSystemDark)
 })
 
-// —— 事件转发 ——
+// —— 事件转发 —— //
 function onSend(payload: { text: string; files: SelectedFile[] }) {
   emit('send', payload)
 }
 function onSelectPreset(q: PresetQuestion) {
   emit('select', q)
+}
+function onFollowupSelect(q: PresetQuestion, source: ChatMessage) {
+  emit('followup-select', q, source)
+  // 默认行为：点击追问后自动作为用户消息发送（与 presetQuestion 一致）
+  const cfg = props.followup
+  const autoSend = Array.isArray(cfg) ? true : cfg?.autoSend !== false
+  if (autoSend) {
+    emit('send', { text: q.prompt, files: [] })
+  }
 }
 
 defineExpose({
