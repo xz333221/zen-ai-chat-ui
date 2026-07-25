@@ -61,6 +61,15 @@
           :streaming="message.reasoningStatus === 'streaming'"
         />
 
+        <!-- 工具调用列表（仅 assistant） -->
+        <div v-if="hasToolCalls" class="acu-bubble-toolcalls">
+          <ToolCallBlock
+            v-for="tc in message.toolCalls"
+            :key="tc.id"
+            :tool-call="tc"
+          />
+        </div>
+
         <!-- 正文 -->
         <div v-if="message.content" class="acu-bubble-content">
           <MarkdownRenderer :source="message.content" />
@@ -105,6 +114,7 @@ import type { ChatMessage } from '@/types'
 import { formatFileSize, isImageType } from '@/utils/format'
 import MarkdownRenderer from '@/components/MarkdownRenderer/MarkdownRenderer.vue'
 import ThinkingBlock from '@/components/ThinkingBlock/ThinkingBlock.vue'
+import ToolCallBlock from '@/components/ToolCallBlock/ToolCallBlock.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -129,6 +139,7 @@ defineEmits<{
 const resolvedAssistantAvatar = computed(() => props.message.avatar || props.assistantAvatar)
 const resolvedUserAvatar = computed(() => props.userAvatar)
 const hasAttachments = computed(() => !!props.message.attachments?.length)
+const hasToolCalls = computed(() => !!props.message.toolCalls?.length)
 const isStreamingContent = computed(
   () =>
     props.message.role === 'assistant' &&
@@ -226,6 +237,11 @@ const isStreamingContent = computed(
     color: inherit;
     font-size: var(--acu-font-size-md);
   }
+}
+
+// 工具调用区
+.acu-bubble-toolcalls {
+  margin-bottom: var(--acu-space-2);
 }
 
 // 附件区

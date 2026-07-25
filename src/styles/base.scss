@@ -88,6 +88,95 @@
   }
 }
 
+// ============================================================
+// 思考块 (.acu-thinking) 共享样式
+// 既给 ThinkingBlock.vue（Vue 组件）用，也给 MarkdownRenderer.vue
+// 里的 v-html 渲染的 <think>...</think> 块用（加 .acu-thinking-md 后缀）。
+// 提取到这里是因为 v-html 内容无法被 scoped 命中，必须是全局样式。
+// ============================================================
+
+@keyframes acu-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.acu-thinking {
+  margin-bottom: var(--acu-space-3);
+  border: 1px solid var(--acu-thinking-border);
+  border-radius: var(--acu-radius);
+  background: var(--acu-thinking-bg);
+  overflow: hidden;
+
+  &.is-streaming {
+    border-color: var(--acu-primary-soft);
+  }
+}
+
+.acu-thinking-header {
+  display: flex;
+  align-items: center;
+  gap: var(--acu-space-2);
+  width: 100%;
+  padding: var(--acu-space-2) var(--acu-space-3);
+  border: none;
+  background: transparent;
+  color: var(--acu-thinking-text);
+  font-size: var(--acu-font-size-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color var(--acu-duration-fast) var(--acu-easing);
+
+  &:hover {
+    background: var(--acu-surface-hover);
+  }
+}
+
+.acu-thinking-icon {
+  display: inline-flex;
+  color: var(--acu-thinking-icon);
+  flex-shrink: 0;
+
+  .is-streaming & {
+    color: var(--acu-primary);
+    animation: acu-pulse 2s var(--acu-easing) infinite;
+  }
+}
+
+.acu-thinking-title {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.acu-thinking-chevron {
+  margin-left: auto;
+  color: var(--acu-text-muted);
+  transition: transform var(--acu-duration) var(--acu-easing);
+  flex-shrink: 0;
+
+  &.is-open {
+    transform: rotate(180deg);
+  }
+}
+
+.acu-thinking-body {
+  padding: 0 var(--acu-space-3) var(--acu-space-3);
+  border-top: 1px dashed var(--acu-thinking-border);
+  color: var(--acu-thinking-text);
+  font-size: var(--acu-font-size-sm);
+  line-height: 1.7;
+}
+
+// markdown 里的 think 块：默认展开，无 chevron
+.acu-thinking-md .acu-thinking-body {
+  border-top: none;
+  padding-top: var(--acu-space-2);
+}
+
 // 仅在用户偏好减少动画时关闭
 @media (prefers-reduced-motion: reduce) {
   .acu-root * {

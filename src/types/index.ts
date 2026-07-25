@@ -28,6 +28,27 @@ export interface ChatAttachment {
   preview?: string
 }
 
+/** 工具调用状态 */
+export type ToolCallStatus = 'pending' | 'running' | 'done' | 'error'
+
+/** 单个工具调用 */
+export interface ToolCall {
+  /** 工具调用 id（对应 OpenAI tool_call_id） */
+  id: string
+  /** 工具名称 */
+  name: string
+  /** 参数预览（简短摘要字符串） */
+  argsPreview?: string
+  /** 完整参数（JSON 字符串） */
+  arguments?: string
+  /** 执行结果 */
+  result?: string
+  /** 执行状态 */
+  status?: ToolCallStatus
+  /** 错误信息 */
+  error?: string
+}
+
 /** 一条对话消息 */
 export interface ChatMessage {
   /** 唯一 id */
@@ -44,6 +65,8 @@ export interface ChatMessage {
   status?: MessageStatus
   /** 附件列表 */
   attachments?: ChatAttachment[]
+  /** 工具调用列表（仅 assistant 消息） */
+  toolCalls?: ToolCall[]
   /** 创建时间戳 */
   createdAt?: number
   /** 错误信息（status === 'error' 时） */
@@ -100,7 +123,7 @@ export interface FollowupConfig {
 }
 
 /** 流式 chunk 类型 */
-export type StreamChunkType = 'content' | 'reasoning' | 'done' | 'error'
+export type StreamChunkType = 'content' | 'reasoning' | 'tool_call_start' | 'tool_result' | 'done' | 'error'
 
 /** 流式输出分片 */
 export interface StreamChunk {

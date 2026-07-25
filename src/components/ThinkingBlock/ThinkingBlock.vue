@@ -109,91 +109,13 @@ function toggle() {
 </script>
 
 <style lang="scss" scoped>
-.acu-thinking {
-  margin-bottom: var(--acu-space-3);
-  border: 1px solid var(--acu-thinking-border);
-  border-radius: var(--acu-radius);
-  background: var(--acu-thinking-bg);
-  overflow: hidden;
-
-  &.is-streaming {
-    border-color: var(--acu-primary-soft);
-  }
-}
-
+// 基础结构样式（.acu-thinking / .acu-thinking-header / .acu-thinking-icon 等）
+// 已迁移到 base.scss 供 ThinkingBlock 与 MarkdownRenderer（v-html 渲染的
+// <think>...</think> 块）共享。这里只保留 ThinkingBlock 独有的：
+//   1. @include acu-focus-ring（focus-visible 描边，仅组件交互需要）
+//   2. 折叠过渡动画（v-show + <transition> 配套）
 .acu-thinking-header {
-  display: flex;
-  align-items: center;
-  gap: var(--acu-space-2);
-  width: 100%;
-  padding: var(--acu-space-2) var(--acu-space-3);
-  border: none;
-  background: transparent;
-  color: var(--acu-thinking-text);
-  font-size: var(--acu-font-size-sm);
-  font-family: inherit;
-  cursor: pointer;
-  transition: background-color var(--acu-duration-fast) var(--acu-easing);
   @include acu-focus-ring;
-
-  &:hover {
-    background: var(--acu-surface-hover);
-  }
-}
-
-.acu-thinking-icon {
-  display: inline-flex;
-  color: var(--acu-thinking-icon);
-  flex-shrink: 0;
-
-  .is-streaming & {
-    color: var(--acu-primary);
-    animation: acu-pulse 2s var(--acu-easing) infinite;
-  }
-}
-
-@keyframes acu-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-.acu-thinking-title {
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.acu-thinking-chevron {
-  margin-left: auto;
-  color: var(--acu-text-muted);
-  transition: transform var(--acu-duration) var(--acu-easing);
-  flex-shrink: 0;
-
-  &.is-open {
-    transform: rotate(180deg);
-  }
-}
-
-.acu-thinking-body {
-  padding: 0 var(--acu-space-3) var(--acu-space-3);
-  border-top: 1px dashed var(--acu-thinking-border);
-  color: var(--acu-thinking-text);
-  font-size: var(--acu-font-size-sm);
-  line-height: 1.7;
-
-  // 思考内容弱化：比正文更柔
-  :deep(.acu-md) {
-    font-size: var(--acu-font-size-sm);
-    color: var(--acu-thinking-text);
-    opacity: 0.92;
-  }
-  :deep(.acu-md p) {
-    margin-bottom: var(--acu-space-2);
-  }
 }
 
 // 折叠过渡
@@ -206,5 +128,15 @@ function toggle() {
 .acu-collapse-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+
+// ThinkingBlock 内的 .acu-md（嵌套 MarkdownRenderer）调小字号、弱化配色
+.acu-thinking-body :deep(.acu-md) {
+  font-size: var(--acu-font-size-sm);
+  color: var(--acu-thinking-text);
+  opacity: 0.92;
+}
+.acu-thinking-body :deep(.acu-md p) {
+  margin-bottom: var(--acu-space-2);
 }
 </style>
