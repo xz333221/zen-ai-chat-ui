@@ -56,8 +56,8 @@
       <div class="acu-bubble" :class="`is-${message.role}`">
         <!-- 思考块（仅 assistant） -->
         <ThinkingBlock
-          v-if="message.role === 'assistant' && message.reasoning"
-          :content="message.reasoning"
+          v-if="message.role === 'assistant' && effectiveReasoning"
+          :content="effectiveReasoning"
           :streaming="message.reasoningStatus === 'streaming'"
         />
 
@@ -71,8 +71,8 @@
         </div>
 
         <!-- 正文 -->
-        <div v-if="message.content" class="acu-bubble-content">
-          <MarkdownRenderer :source="message.content" />
+        <div v-if="renderedContent" class="acu-bubble-content">
+          <MarkdownRenderer :source="renderedContent" />
           <span
             v-if="isStreamingContent"
             class="acu-cursor"
@@ -115,6 +115,7 @@ import { formatFileSize, isImageType } from '@/utils/format'
 import MarkdownRenderer from '@/components/MarkdownRenderer/MarkdownRenderer.vue'
 import ThinkingBlock from '@/components/ThinkingBlock/ThinkingBlock.vue'
 import ToolCallBlock from '@/components/ToolCallBlock/ToolCallBlock.vue'
+import { extractThinkSegments } from '@/composables/useMarkdown'
 
 const props = withDefaults(
   defineProps<{
@@ -140,11 +141,29 @@ const resolvedAssistantAvatar = computed(() => props.message.avatar || props.ass
 const resolvedUserAvatar = computed(() => props.userAvatar)
 const hasAttachments = computed(() => !!props.message.attachments?.length)
 const hasToolCalls = computed(() => !!props.message.toolCalls?.length)
+
+// 把 content 里嵌入的 <think>...</think> 段抽出来合到 reasoning,
+// 避免 <think>…直接混在正文里展示。
+const splitContent = computed(() => {
+  const src = props.message.content || ''
+  if (!src) return { reasoning: '', content: '' }
+  // 已经存在独立 reasoning 流（来自 SSE 的 thinking 事件）时不重复抽取,
+  // 防止在 thinking 流和 content 流同时携带 <think> 标签时把已抽好的又抽一次。
+  if (props.message.reasoningStatus === 'streaming') {
+    // 仅剥离标签，不动内容（保留 streaming 体验）
+    const stripped = src.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+    return { reasoning: '', content: stripped }
+  }
+  return extractThinkSegments(src)
+})
+const inlineReasoning = computed(() => splitContent.value.reasoning)
+const renderedContent = computed(() => splitContent.value.content)
+const effectiveReasoning = computed(() => props.message.reasoning || inlineReasoning.value)
 const isStreamingContent = computed(
   () =>
     props.message.role === 'assistant' &&
     props.message.status === 'streaming' &&
-    !!props.message.content
+    !!renderedContent.value
 )
 </script>
 

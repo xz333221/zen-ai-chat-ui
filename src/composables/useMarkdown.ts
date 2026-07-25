@@ -143,19 +143,56 @@ md.renderer.rules.fence = (tokens, idx) => {
   )
 }
 
-// —— think 块：识别 <think>...</think> 或 <think>...</think>（可跨多行） ————
+// —— think 块：识别 <think>...</think> 或 <think>...</think> ————
 //
-// 背景：部分模型（如 MiniMax-M3）会把 reasoning 直接塞进 content 流，
-// 用 <think>...</think>（无问号）标签包裹。DeepSeek 类模型用 <think>...</think>。
+// 背景：部分模型（如 MiniMax-M3、DeepSeek 系）会把 reasoning 直接塞进
+// content 流，用 <think>...</think> 或 <think>...</think> 包裹。
 // 前端如果只解析 delta.reasoning_content 字段就会漏掉这部分。
-// MarkdownRenderer 主动识别这两种语法，渲染成跟 ThinkingBlock 同样的样式，
-// 复用 .acu-thinking class。
 //
-// streaming 边界：块可能跨 chunk，第一次扫描时若找不到结束符就
-// 返回 false，让 markdown-it 按普通 paragraph 渲染，下一次 source
-// 变化时再重试。
-const THINK_OPEN = ['<think>', '<think>'] as const
+// 触发位置不再要求"行首"：模型常常在段落中间插入，比如
+//   "让我先确认项目结构。<think>确认了:..."
+// 因此 block rule 在每行先扫描是否含有 <think*…开标签，命中后再向后
+// 找结束标签；跨 chunk 的未闭合块返回 false，下次 source 增长时再扫。
+const THINK_OPEN_RE = /<think>/g
 const THINK_CLOSE = ['</think>', '</think>'] as const
+
+/** 在文本中扫描所有已闭合的 think 段，返回 segments（数组）和 stripped（剩余正文）。 */
+export function extractThinkSegments(
+  source: string
+): { reasoning: string; content: string } {
+  if (!source) return { reasoning: '', content: '' }
+  const segments: string[] = []
+  let cursor = 0
+  // 全文扫描，每找到一个 <think*…开始位置，就在剩余文本里找最近一个 </think>
+  // 跨多行也算合法（标签之间允许任意字符）
+  while (cursor < source.length) {
+    THINK_OPEN_RE.lastIndex = cursor
+    const open = THINK_OPEN_RE.exec(source)
+    if (!open) break
+    const openStart = open.index
+    const openEnd = openStart + open[0].length
+    const tail = source.slice(openEnd)
+    // 找最近的结束标签（支持 <think> / <think> 两种）
+    let closeIdx = -1
+    let closeTagLen = 0
+    for (const tag of THINK_CLOSE) {
+      const i = tail.indexOf(tag)
+      if (i !== -1 && (closeIdx === -1 || i < closeIdx)) {
+        closeIdx = i
+        closeTagLen = tag.length
+      }
+    }
+    if (closeIdx === -1) break // 未闭合 → 留给下一次 source 增长再处理
+    const thinkText = tail.slice(0, closeIdx).trim()
+    if (thinkText) segments.push(thinkText)
+    cursor = openEnd + closeIdx + closeTagLen
+  }
+  if (segments.length === 0) return { reasoning: '', content: source }
+  const reasoning = segments.join('\n\n')
+  // 剔除已抽取的 think 块（含标签本身），剩余部分作为正文
+  const content = source.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+  return { reasoning, content }
+}
 
 md.block.ruler.before(
   'paragraph',
@@ -165,27 +202,34 @@ md.block.ruler.before(
     const max = state.eMarks[startLine]
     const line = state.src.slice(start, max)
 
-    // 找起始标签（<think> 或 <think>）
-    const openMatch = THINK_OPEN.find((tag) => line.startsWith(tag))
+    // 找起始标签（行内任意位置都行，不再要求行首）
+    THINK_OPEN_RE.lastIndex = start
+    const openMatch = THINK_OPEN_RE.exec(line)
     if (!openMatch) return false
+    const openIdx = openMatch.index
     if (silent) return true
 
-    // 扫描后续行找结束标签（</think> 或 </think>）
+    // 从 openIdx 之后扫描结束标签（先看同行；同行没有就向下找）
     let foundLine = -1
     let closeTag = ''
+    let closeCol = -1
     for (let i = startLine; i < endLine; i++) {
       const lineStart = state.bMarks[i] + state.tShift[i]
       const lineMax = state.eMarks[i]
       const text = state.src.slice(lineStart, lineMax)
-      const hit = THINK_CLOSE.find((tag) => text.includes(tag))
-      if (hit) {
-        foundLine = i
-        closeTag = hit
-        break
+      const searchFrom = i === startLine ? start + openIdx + '<think>'.length : 0
+      for (const tag of THINK_CLOSE) {
+        const idx = text.indexOf(tag, searchFrom)
+        if (idx !== -1 && (closeCol === -1 || idx < closeCol)) {
+          closeCol = idx
+          closeTag = tag
+          foundLine = i
+        }
       }
+      if (foundLine !== -1) break
     }
 
-    // 没找到结束符 → 还在 streaming → 走普通 paragraph
+    // 没找到结束符 → 还在 streaming → 让 markdown-it 按普通 paragraph 渲染
     if (foundLine < 0) return false
 
     // 提取起始标签和结束标签之间的内容（去标签，保留换行）
@@ -194,7 +238,7 @@ md.block.ruler.before(
       const lineStart = state.bMarks[i] + state.tShift[i]
       const lineMax = state.eMarks[i]
       let text = state.src.slice(lineStart, lineMax)
-      if (i === startLine) text = text.slice(openMatch.length)
+      if (i === startLine) text = text.slice(openIdx + '<think>'.length)
       if (i === foundLine) text = text.slice(0, text.indexOf(closeTag))
       lines.push(text)
     }
@@ -203,7 +247,7 @@ md.block.ruler.before(
     const token = state.push('think_block', '', 0)
     token.content = thinkContent
     token.map = [startLine, foundLine + 1]
-    token.markup = openMatch
+    token.markup = '<think>'
     token.block = true
 
     state.line = foundLine + 1

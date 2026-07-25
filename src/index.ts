@@ -17,7 +17,12 @@ export { default as MarkdownRenderer } from './components/MarkdownRenderer/Markd
 export { default as FollowupSuggestions } from './components/FollowupSuggestions/FollowupSuggestions.vue'
 
 // composables
-export { useMarkdown, isShikiReady, ensureHighlighter } from './composables/useMarkdown'
+export {
+  useMarkdown,
+  isShikiReady,
+  ensureHighlighter,
+  extractThinkSegments
+} from './composables/useMarkdown'
 export { useStreaming } from './composables/useStreaming'
 
 // 工具
