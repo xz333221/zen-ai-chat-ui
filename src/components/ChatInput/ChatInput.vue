@@ -74,6 +74,7 @@
         @input="autoResize"
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"
+        @paste="onPaste"
       ></textarea>
 
       <button
@@ -206,6 +207,24 @@ function removeFile(id: string) {
     if (f.preview) URL.revokeObjectURL(f.preview)
     pendingFiles.value.splice(idx, 1)
   }
+}
+
+// —— 粘贴 ——
+function onPaste(e: ClipboardEvent) {
+  if (props.disabled || !uploadEnabled.value) return
+  const items = e.clipboardData?.items
+  if (!items || items.length === 0) return
+  const files: File[] = []
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item.kind === 'file') {
+      const file = item.getAsFile()
+      if (file) files.push(file)
+    }
+  }
+  if (files.length === 0) return
+  e.preventDefault()
+  addFiles(files)
 }
 
 // —— 拖拽 ——
