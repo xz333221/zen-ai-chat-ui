@@ -273,7 +273,7 @@ const defaultThinkRender =
       `<path d="M12 4v16"/>` +
       `</svg>` +
       `</span>` +
-      `<span class="acu-thinking-title">已深度思考</span>` +
+      `<span class="acu-thinking-title">思考</span>` +
       `</button>` +
       `<div class="acu-thinking-body">${inner}</div>` +
       `</div>`

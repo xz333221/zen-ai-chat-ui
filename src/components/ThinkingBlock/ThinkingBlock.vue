@@ -2,7 +2,7 @@
   <!--
     思考（reasoning）内容块。
     - streaming：默认展开，标题显示"思考中"+三点动画，正文带流式光标
-    - done：可折叠，标题显示"已深度思考"，默认折叠
+    - done：可折叠，标题显示"思考"，默认折叠
     - 样式区别于正式回答：弱化配色、左侧细线、更小字号
   -->
   <div class="acu-thinking" :class="{ 'is-streaming': streaming }">
@@ -35,7 +35,7 @@
       </span>
 
       <span class="acu-thinking-title">
-        {{ streaming ? '思考中' : '已深度思考' }}
+        {{ streaming ? '思考中' : '思考' }}
       </span>
 
       <span v-if="streaming" class="acu-typing-dots" aria-hidden="true">
