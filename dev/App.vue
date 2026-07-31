@@ -10,6 +10,9 @@
           追问：{{ followupModeLabel }}
         </button>
         <button class="demo-btn" @click="clearMessages">清空</button>
+        <button class="demo-btn" @click="toggleDebug">
+          调试：{{ debugMode ? '开' : '关' }}
+        </button>
         <button class="demo-btn demo-btn--primary" @click="toggleTheme">
           主题：{{ theme }}
         </button>
@@ -25,7 +28,7 @@
         assistant-name="AI 助手"
         :theme="theme"
         :disabled="busy"
-        :upload-config="{ enabled: true, multiple: true, accept: 'image/*,.pdf,.zip' }"
+        :upload-config="{ enabled: true, multiple: true }"
         :followup="followup"
         @send="onSend"
         @select="onSelect"
@@ -33,6 +36,36 @@
         @followup-select="onFollowupSelect"
       />
     </main>
+
+    <!-- 调试浮动按钮（仅调试模式开启时显示） -->
+    <button
+      v-if="debugMode"
+      type="button"
+      class="demo-debug-fab"
+      @click="showDebugModal = true"
+    >
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+      </svg>
+      <span>查看数据结构</span>
+    </button>
+
+    <!-- 调试模态框 -->
+    <div v-if="showDebugModal" class="demo-debug-modal" @click.self="showDebugModal = false">
+      <div class="demo-debug-panel">
+        <header class="demo-debug-panel-header">
+          <div>
+            <div class="demo-debug-panel-title">messages 数据结构</div>
+            <div class="demo-debug-panel-sub">{{ messages.length }} 条消息 · {{ debugJson.length }} 字符</div>
+          </div>
+          <div class="demo-debug-panel-actions">
+            <button type="button" class="demo-btn" @click="copyDebugJson">复制</button>
+            <button type="button" class="demo-btn" @click="showDebugModal = false">关闭</button>
+          </div>
+        </header>
+        <pre class="demo-debug-pre"><code>{{ debugJson }}</code></pre>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -55,11 +88,28 @@ const streaming = useStreaming()
 const busy = ref(false)
 const theme = ref<ThemeMode | 'auto'>('light')
 
+// —— 调试模式：开启后展示「查看数据结构」按钮 ——
+const debugMode = ref(false)
+const showDebugModal = ref(false)
+const debugJson = computed(() => JSON.stringify(messages.value, null, 2))
+function toggleDebug() {
+  debugMode.value = !debugMode.value
+  if (!debugMode.value) showDebugModal.value = false
+}
+async function copyDebugJson() {
+  try {
+    await navigator.clipboard.writeText(debugJson.value)
+  } catch {
+    /* 忽略：file:// 等场景下 clipboard 不可用 */
+  }
+}
+
 const presetQuestions: PresetQuestion[] = [
   { id: 'q1', label: '介绍这个组件库', prompt: '介绍一下 ai-chat-ui 组件库的能力' },
   { id: 'q2', label: '如何接入流式输出', prompt: '怎么接入流式输出？' },
   { id: 'q3', label: '展示 Markdown 渲染', prompt: '展示一下 Markdown 渲染效果' },
-  { id: 'q4', label: '深色模式怎么用', prompt: '深色模式如何配置？' }
+  { id: 'q4', label: '深色模式怎么用', prompt: '深色模式如何配置？' },
+  { id: 'q5', label: '查询北京天气', prompt: '北京今天天气怎么样？' }
 ]
 
 /**
@@ -146,7 +196,11 @@ async function onSend({ text, files }: { text: string; files: SelectedFile[] }) 
   const assistant = streaming.createAssistant(uid('a'))
   assistant.status = 'pending'
   messages.value.push(assistant)
-  await runMockStream(assistant, text)
+  if (text === '北京今天天气怎么样？') {
+    await runToolCallDemo(assistant)
+  } else {
+    await runMockStream(assistant, text)
+  }
 }
 
 function onSelect(q: PresetQuestion) {
@@ -188,6 +242,67 @@ async function runMockStream(msg: ChatMessage, _userText: string) {
     for (const ch of content) {
       streaming.append(msg, { type: 'content', delta: ch })
       await sleep(4 + Math.random() * 10)
+    }
+    streaming.finish(msg)
+  } catch (e) {
+    streaming.fail(msg, (e as Error).message || '模拟失败')
+  } finally {
+    busy.value = false
+  }
+}
+
+// —— 演示：工具调用全流程（reasoning → running → done + 结果 → 正文） ——
+async function runToolCallDemo(msg: ChatMessage) {
+  busy.value = true
+  try {
+    await sleep(400)
+    msg.status = 'streaming'
+
+    // 1) reasoning
+    msg.reasoningStatus = 'streaming'
+    const reasoning = '用户问的是天气，需要调用 get_weather 工具拉取北京实时数据。'
+    for (const ch of reasoning) {
+      streaming.append(msg, { type: 'reasoning', delta: ch })
+      await sleep(8)
+    }
+    msg.reasoningStatus = 'done'
+    await sleep(200)
+
+    // 2) 推送工具调用（running 状态）。所有后续变更都通过 msg 改，强制走 Vue 的 reactive proxy
+    msg.toolCalls = [
+      {
+        id: uid('tc'),
+        name: 'get_weather',
+        argsPreview: 'city=北京, unit=celsius',
+        arguments: JSON.stringify({ city: '北京', unit: 'celsius' }, null, 2),
+        status: 'running'
+      }
+    ]
+    await sleep(1200)
+
+    // 3) 标记完成 + 回填结果（通过 msg proxy 直接改，避免绕开响应式）
+    msg.toolCalls[0].status = 'done'
+    msg.toolCalls[0].result = JSON.stringify(
+      {
+        city: '北京',
+        temp: 22,
+        unit: 'celsius',
+        condition: '晴',
+        humidity: 41,
+        updated_at: '2026-07-31 14:00'
+      },
+      null,
+      2
+    )
+    await sleep(300)
+
+    // 4) 基于工具结果生成正文
+    const content =
+      '已为你查询：**北京** 当前 **晴**，气温 **22°C**，湿度 41%。\n\n' +
+      '> 工具返回时间：2026-07-31 14:00'
+    for (const ch of content) {
+      streaming.append(msg, { type: 'content', delta: ch })
+      await sleep(8)
     }
     streaming.finish(msg)
   } catch (e) {
@@ -357,5 +472,85 @@ body {
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(24, 24, 27, 0.08);
   background: #fff;
+}
+
+/* —— 调试浮动按钮 —— */
+.demo-debug-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #fff;
+  background: #6366f1;
+  border: none;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.demo-debug-fab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45);
+}
+
+/* —— 调试模态框 —— */
+.demo-debug-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(24, 24, 27, 0.55);
+  backdrop-filter: blur(2px);
+}
+.demo-debug-panel {
+  width: min(880px, 92vw);
+  max-height: 86vh;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.demo-debug-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e7e7ea;
+}
+.demo-debug-panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #18181b;
+}
+.demo-debug-panel-sub {
+  font-size: 12px;
+  color: #71717a;
+  margin-top: 2px;
+}
+.demo-debug-panel-actions {
+  display: flex;
+  gap: 8px;
+}
+.demo-debug-pre {
+  flex: 1;
+  margin: 0;
+  padding: 16px 18px;
+  overflow: auto;
+  background: #fafafa;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #27272a;
+  white-space: pre;
 }
 </style>
