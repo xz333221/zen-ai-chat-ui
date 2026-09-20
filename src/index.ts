@@ -11,6 +11,8 @@ export { default as MessageList } from './components/MessageList/MessageList.vue
 export { default as MessageBubble } from './components/MessageBubble/MessageBubble.vue'
 export { default as ThinkingBlock } from './components/ThinkingBlock/ThinkingBlock.vue'
 export { default as ToolCallBlock } from './components/ToolCallBlock/ToolCallBlock.vue'
+export { default as ToolCallGroup } from './components/ToolCallGroup/ToolCallGroup.vue'
+export { default as MessageActions } from './components/MessageActions/MessageActions.vue'
 export { default as WelcomeScreen } from './components/WelcomeScreen/WelcomeScreen.vue'
 export { default as ChatInput } from './components/ChatInput/ChatInput.vue'
 export { default as MarkdownRenderer } from './components/MarkdownRenderer/MarkdownRenderer.vue'
@@ -37,6 +39,8 @@ export type {
   ChatMessage,
   ToolCall,
   ToolCallStatus,
+  ToolCallsConfig,
+  MessageActionsConfig,
   PresetQuestion,
   FollowupInput,
   FollowupConfig,

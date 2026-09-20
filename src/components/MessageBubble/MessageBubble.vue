@@ -61,13 +61,9 @@
           :streaming="message.reasoningStatus === 'streaming'"
         />
 
-        <!-- 工具调用列表（仅 assistant） -->
+        <!-- 工具调用（仅 assistant）：多个调用默认折叠，只展示最新一个 -->
         <div v-if="hasToolCalls" class="acu-bubble-toolcalls">
-          <ToolCallBlock
-            v-for="tc in message.toolCalls"
-            :key="tc.id"
-            :tool-call="tc"
-          />
+          <ToolCallGroup :tool-calls="message.toolCalls || []" :config="toolCallsConfig" />
         </div>
 
         <!-- 正文 -->
@@ -96,6 +92,17 @@
           <button type="button" class="acu-retry-btn" @click="$emit('retry', message)">重试</button>
         </div>
       </div>
+
+      <!-- 气泡下方操作栏：复制（user / assistant）+ 重新生成（assistant） -->
+      <MessageActions
+        v-if="showActions"
+        :role="message.role"
+        :copy-text="copyText"
+        :show-copy="showCopy"
+        :show-retry="showRetryAction"
+        :copied-duration="actionsConfig?.copiedDuration ?? 1600"
+        @retry="$emit('retry', message)"
+      />
     </div>
 
     <!-- ===== 右侧头像（仅 user） ===== -->
@@ -110,11 +117,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ChatMessage } from '@/types'
+import type { ChatMessage, ToolCallsConfig, MessageActionsConfig } from '@/types'
 import { formatFileSize, isImageType } from '@/utils/format'
 import MarkdownRenderer from '@/components/MarkdownRenderer/MarkdownRenderer.vue'
 import ThinkingBlock from '@/components/ThinkingBlock/ThinkingBlock.vue'
-import ToolCallBlock from '@/components/ToolCallBlock/ToolCallBlock.vue'
+import ToolCallGroup from '@/components/ToolCallGroup/ToolCallGroup.vue'
+import MessageActions from '@/components/MessageActions/MessageActions.vue'
 import { extractThinkSegments } from '@/composables/useMarkdown'
 
 const props = withDefaults(
@@ -124,12 +132,21 @@ const props = withDefaults(
     assistantAvatar?: string
     userAvatar?: string
     showAvatar?: boolean
+    /** 工具调用展示配置（分组折叠与否） */
+    toolCallsConfig?: ToolCallsConfig
+    /** 气泡下方操作栏配置（复制 / 重新生成） */
+    actionsConfig?: MessageActionsConfig
+    /** 是否是最后一条 assistant 消息（决定「重新生成」是否出现） */
+    isLastAssistant?: boolean
   }>(),
   {
     assistantName: 'AI 助手',
     assistantAvatar: '',
     userAvatar: '',
-    showAvatar: true
+    showAvatar: true,
+    toolCallsConfig: undefined,
+    actionsConfig: undefined,
+    isLastAssistant: false
   }
 )
 
@@ -165,6 +182,42 @@ const isStreamingContent = computed(
     props.message.status === 'streaming' &&
     !!renderedContent.value
 )
+
+// —— 气泡下方操作栏 —— //
+
+/** 系统消息不显示操作栏 */
+const showActions = computed(
+  () => props.message.role !== 'system' && props.actionsConfig?.enable !== false
+)
+
+/**
+ * 复制内容：
+ * - assistant 用剥离 <think> 后的正文，避免把思考过程一起复制走
+ * - user 直接用原始 content
+ */
+const copyText = computed(() =>
+  props.message.role === 'assistant'
+    ? renderedContent.value
+    : props.message.content || ''
+)
+
+const showCopy = computed(
+  () => props.actionsConfig?.copy !== false && !!copyText.value
+)
+
+/**
+ * 重新生成：仅 assistant，且已产出内容。
+ * 流式 / 等待中不显示；错误态已有气泡内的「重试」，这里不再重复。
+ * retryOnlyLast 默认 true，只有最后一条 assistant 才出现。
+ */
+const showRetryAction = computed(() => {
+  if (props.message.role !== 'assistant') return false
+  if (props.actionsConfig?.retry === false) return false
+  if (props.message.status !== 'done') return false
+  const onlyLast = props.actionsConfig?.retryOnlyLast ?? true
+  if (onlyLast && !props.isLastAssistant) return false
+  return true
+})
 </script>
 
 <style lang="scss" scoped>
@@ -176,6 +229,21 @@ const isStreamingContent = computed(
   // user 消息：整行靠右，头像在右侧（DOM 顺序不变）
   &.is-user {
     justify-content: flex-end;
+  }
+}
+
+// —— 操作栏的显隐 —— //
+// 支持 hover 的设备：默认隐藏，悬停整行 / 键盘聚焦时才淡入（不占额外空间，无需布局抖动处理）
+// 触摸设备（无 hover）走 @media 之外的分支：始终可见，否则永远点不到。
+@media (hover: hover) {
+  .acu-bubble-row :deep(.acu-message-actions) {
+    opacity: 0;
+    transition: opacity var(--acu-duration-fast) var(--acu-easing);
+  }
+
+  .acu-bubble-row:hover :deep(.acu-message-actions),
+  .acu-bubble-row:focus-within :deep(.acu-message-actions) {
+    opacity: 1;
   }
 }
 

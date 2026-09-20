@@ -14,6 +14,9 @@
           :assistant-avatar="assistantAvatar"
           :user-avatar="userAvatar"
           :show-avatar="showAvatar"
+          :tool-calls-config="toolCallsConfig"
+          :actions-config="actionsConfig"
+          :is-last-assistant="msg.id === lastAssistantId"
           @retry="(m) => $emit('retry', m)"
         />
         <!-- 追问建议：assistant 气泡下方独立区域（豆包风格） -->
@@ -45,7 +48,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, computed, nextTick, onMounted } from 'vue'
-import type { ChatMessage, PresetQuestion, FollowupConfig } from '@/types'
+import type {
+  ChatMessage,
+  PresetQuestion,
+  FollowupConfig,
+  ToolCallsConfig,
+  MessageActionsConfig
+} from '@/types'
 import MessageBubble from '@/components/MessageBubble/MessageBubble.vue'
 import FollowupSuggestions from '@/components/FollowupSuggestions/FollowupSuggestions.vue'
 
@@ -63,13 +72,19 @@ const props = withDefaults(
     showAvatar?: boolean
     /** 追问配置（数组或对象）。为 undefined/不传时关闭追问 */
     followup?: FollowupConfig | PresetQuestion[]
+    /** 工具调用展示配置（默认多个调用折叠成组、只展示最新一个） */
+    toolCallsConfig?: ToolCallsConfig
+    /** 气泡下方操作栏配置（复制 / 重新生成） */
+    actionsConfig?: MessageActionsConfig
   }>(),
   {
     assistantName: 'AI 助手',
     assistantAvatar: '',
     userAvatar: '',
     showAvatar: true,
-    followup: undefined
+    followup: undefined,
+    toolCallsConfig: undefined,
+    actionsConfig: undefined
   }
 )
 
@@ -109,6 +124,14 @@ const lastDoneAssistantId = computed<string | null>(() => {
   for (let i = props.messages.length - 1; i >= 0; i--) {
     const m = props.messages[i]
     if (m.role === 'assistant' && m.status === 'done') return m.id
+  }
+  return null
+})
+
+/** 最后一条 assistant 消息 id（「重新生成」按钮默认只挂在这一条上） */
+const lastAssistantId = computed<string | null>(() => {
+  for (let i = props.messages.length - 1; i >= 0; i--) {
+    if (props.messages[i].role === 'assistant') return props.messages[i].id
   }
   return null
 })

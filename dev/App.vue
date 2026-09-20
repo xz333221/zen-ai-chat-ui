@@ -9,6 +9,9 @@
         <button class="demo-btn" @click="toggleFollowup">
           追问：{{ followupModeLabel }}
         </button>
+        <button class="demo-btn" @click="toggleToolGroup">
+          工具折叠：{{ toolGroupEnabled ? '开' : '关' }}
+        </button>
         <button class="demo-btn" @click="clearMessages">清空</button>
         <button class="demo-btn" @click="toggleDebug">
           调试：{{ debugMode ? '开' : '关' }}
@@ -30,6 +33,7 @@
         :disabled="busy"
         :upload-config="{ enabled: true, multiple: true }"
         :followup="followup"
+        :tool-calls-config="toolCallsConfig"
         @send="onSend"
         @select="onSelect"
         @retry="onRetry"
@@ -80,7 +84,8 @@ import {
   type PresetQuestion,
   type ThemeMode,
   type SelectedFile,
-  type FollowupConfig
+  type FollowupConfig,
+  type ToolCallsConfig
 } from '../src'
 
 const messages = ref<ChatMessage[]>([])
@@ -109,8 +114,18 @@ const presetQuestions: PresetQuestion[] = [
   { id: 'q2', label: '如何接入流式输出', prompt: '怎么接入流式输出？' },
   { id: 'q3', label: '展示 Markdown 渲染', prompt: '展示一下 Markdown 渲染效果' },
   { id: 'q4', label: '深色模式怎么用', prompt: '深色模式如何配置？' },
-  { id: 'q5', label: '查询北京天气', prompt: '北京今天天气怎么样？' }
+  { id: 'q5', label: '查询北京天气', prompt: '北京今天天气怎么样？' },
+  { id: 'q6', label: '多工具调用折叠', prompt: '帮我排查一下项目报错' }
 ]
+
+// —— 工具调用展示配置：演示「多个调用折叠成组，只展示最新一个」 ——
+const toolGroupEnabled = ref(true)
+const toolCallsConfig = computed<ToolCallsConfig>(() => ({
+  group: toolGroupEnabled.value
+}))
+function toggleToolGroup() {
+  toolGroupEnabled.value = !toolGroupEnabled.value
+}
 
 /**
  * 演示：动态生成追问建议（按上一轮 assistant 内容关键字匹配返回不同追问）。
@@ -198,6 +213,8 @@ async function onSend({ text, files }: { text: string; files: SelectedFile[] }) 
   messages.value.push(assistant)
   if (text === '北京今天天气怎么样？') {
     await runToolCallDemo(assistant)
+  } else if (text === '帮我排查一下项目报错') {
+    await runMultiToolCallDemo(assistant)
   } else {
     await runMockStream(assistant, text)
   }
@@ -300,6 +317,70 @@ async function runToolCallDemo(msg: ChatMessage) {
     const content =
       '已为你查询：**北京** 当前 **晴**，气温 **22°C**，湿度 41%。\n\n' +
       '> 工具返回时间：2026-07-31 14:00'
+    for (const ch of content) {
+      streaming.append(msg, { type: 'content', delta: ch })
+      await sleep(8)
+    }
+    streaming.finish(msg)
+  } catch (e) {
+    streaming.fail(msg, (e as Error).message || '模拟失败')
+  } finally {
+    busy.value = false
+  }
+}
+
+// —— 演示：一条消息里连续出现大量工具调用（验证默认折叠为「只展示最新一个」） ——
+async function runMultiToolCallDemo(msg: ChatMessage) {
+  busy.value = true
+  try {
+    await sleep(400)
+    msg.status = 'streaming'
+
+    msg.reasoningStatus = 'streaming'
+    const reasoning = '项目报错涉及多个文件，先定位 TailwindCSS 版本冲突，再逐一读取相关配置。'
+    for (const ch of reasoning) {
+      streaming.append(msg, { type: 'reasoning', delta: ch })
+      await sleep(6)
+    }
+    msg.reasoningStatus = 'done'
+    await sleep(160)
+
+    const steps: Array<{ name: string; argsPreview: string; result?: string }> = [
+      { name: 'list_files', argsPreview: 'path=./', result: 'src/  vite.config.ts  package.json  index.html' },
+      { name: 'read_file', argsPreview: 'path=package.json', result: '{\n  "dependencies": { "tailwindcss": "^4.0.0" }\n}' },
+      { name: 'run_command', argsPreview: 'npx tailwindcss -v', result: 'tailwindcss v4.0.0' },
+      { name: 'run_command', argsPreview: 'npm ls tailwindcss', result: '└── tailwindcss@4.0.0' },
+      { name: 'read_file', argsPreview: 'path=vite.config.ts', result: 'export default defineConfig({ plugins: [vue()] })' },
+      { name: 'grep_search', argsPreview: 'pattern=@tailwind', result: 'src/styles/index.scss:  @tailwind base;' },
+      { name: 'read_file', argsPreview: 'path=src/styles/index.scss', result: '@tailwind base;\n@tailwind components;' },
+      { name: 'write_file', argsPreview: 'path=src/styles/index.scss', result: 'ok' },
+      { name: 'run_command', argsPreview: 'npm run dev', result: 'ready in 421 ms' },
+      { name: 'read_file', argsPreview: 'path=src/main.ts', result: 'import "./styles/index.scss"' },
+      { name: 'run_command', argsPreview: 'npm run build', result: 'built in 3.20s' },
+      { name: 'read_file', argsPreview: 'path=src/components/App.vue', result: '<template>...</template>' }
+    ]
+
+    // 1) 先一次性挂上 running 列表（模拟模型一次性下发多个 tool_call）
+    msg.toolCalls = steps.map((s) => ({
+      id: uid('tc'),
+      name: s.name,
+      argsPreview: s.argsPreview,
+      arguments: s.argsPreview,
+      status: 'running' as const
+    }))
+
+    // 2) 逐个完成，模拟真实执行节奏
+    for (let i = 0; i < steps.length; i++) {
+      await sleep(220)
+      const tc = msg.toolCalls[i]
+      tc.status = 'done'
+      tc.result = steps[i].result
+    }
+
+    await sleep(240)
+    const content =
+      '排查完成：根因是 **TailwindCSS v4** 的 `@tailwind` 指令在 v4 中已废弃，\n\n' +
+      '已在 `src/styles/index.scss` 中改为 `@import "tailwindcss";`，构建通过 ✅'
     for (const ch of content) {
       streaming.append(msg, { type: 'content', delta: ch })
       await sleep(8)

@@ -23,6 +23,8 @@
         :user-avatar="userAvatar"
         :show-avatar="showAvatar"
         :followup="followup"
+        :tool-calls-config="toolCallsConfig"
+        :actions-config="actionsConfig"
         @retry="(m) => $emit('retry', m)"
         @followup-select="onFollowupSelect"
       />
@@ -47,7 +49,9 @@ import type {
   ThemeMode,
   UploadConfig,
   SelectedFile,
-  FollowupInput
+  FollowupInput,
+  ToolCallsConfig,
+  MessageActionsConfig
 } from '@/types'
 import MessageList from '@/components/MessageList/MessageList.vue'
 import WelcomeScreen from '@/components/WelcomeScreen/WelcomeScreen.vue'
@@ -85,6 +89,18 @@ const props = withDefaults(
      * - 传对象：可启用 provider 动态生成、title、mode 等高级配置
      */
     followup?: FollowupInput
+    /**
+     * 工具调用展示配置。
+     * 默认把同一条消息里的多个工具调用折叠成一组，只展示最新（最后一次）调用，
+     * 点击组头可展开全部。传 `{ group: false }` 可恢复为平铺展示。
+     */
+    toolCallsConfig?: ToolCallsConfig
+    /**
+     * 气泡下方操作栏配置。
+     * 默认 user / assistant 气泡下方都有「复制」，最后一条 assistant 额外有「重新生成」。
+     * 传 `{ enable: false }` 可整体关闭。
+     */
+    actionsConfig?: MessageActionsConfig
   }>(),
   {
     presetQuestions: () => [],
@@ -98,7 +114,9 @@ const props = withDefaults(
     placeholder: '输入消息，Enter 发送，Shift+Enter 换行',
     disabled: false,
     uploadConfig: () => ({}),
-    followup: undefined
+    followup: undefined,
+    toolCallsConfig: undefined,
+    actionsConfig: undefined
   }
 )
 

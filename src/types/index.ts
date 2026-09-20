@@ -49,6 +49,61 @@ export interface ToolCall {
   error?: string
 }
 
+/**
+ * 工具调用展示配置。
+ * 同一条 assistant 消息里可能有十几个连续的工具调用，
+ * 默认折叠成一组、只展示最新（最后一次）的调用。
+ */
+export interface ToolCallsConfig {
+  /**
+   * 是否把多个工具调用折叠成组
+   * @default true
+   */
+  group?: boolean
+  /**
+   * 调用数量达到该值时才折叠（最小生效值 2）
+   * @default 2
+   */
+  collapseThreshold?: number
+  /**
+   * 折叠组默认是否展开
+   * @default false
+   */
+  defaultExpanded?: boolean
+}
+
+/**
+ * 消息操作栏配置（气泡下方的复制 / 重新生成按钮）。
+ */
+export interface MessageActionsConfig {
+  /**
+   * 是否显示操作栏
+   * @default true
+   */
+  enable?: boolean
+  /**
+   * 是否显示「复制」按钮（user / assistant 消息都会显示）
+   * @default true
+   */
+  copy?: boolean
+  /**
+   * 是否显示「重新生成」按钮（仅 assistant 消息，且不再处于流式状态时）
+   * @default true
+   */
+  retry?: boolean
+  /**
+   * 「重新生成」是否只出现在最后一条 assistant 消息上。
+   * 设为 false 则历史消息也显示（适合需要分支 / 重新回答的场景）
+   * @default true
+   */
+  retryOnlyLast?: boolean
+  /**
+   * 复制成功后提示文案的停留时长（毫秒）
+   * @default 1600
+   */
+  copiedDuration?: number
+}
+
 /** 一条对话消息 */
 export interface ChatMessage {
   /** 唯一 id */
