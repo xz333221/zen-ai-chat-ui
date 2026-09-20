@@ -30,5 +30,8 @@ pnpm-debug.log*
 *.tgz
 .playwright-cli/
 
+# Vite 打包 vite.config.ts 时生成的临时文件（dev server 被强杀时不会自动清理）
+vite.config.ts.timestamp-*.mjs
+
 # AI 助手工作目录（记忆文件不上传）
 .workbuddy/
