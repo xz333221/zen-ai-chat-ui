@@ -307,7 +307,56 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 npm install
 npm run dev      # 启动调试（http://127.0.0.1:7788）
 npm run build    # 构建组件库产物（dist/）
+npm run release  # 一键发版（见下）
 ```
+
+## 发布
+
+```bash
+npm run release -- --dry-run   # 先看一遍计划，不写文件 / 不提交 / 不发布
+npm run release                # 正式发版
+```
+
+脚本（`scripts/release.js`）按顺序做 8 件事：
+
+1. **环境检查** —— git 仓库 / 分支 / 清理遗留 `*.lock` / 工作区干净 / `npm whoami` 已登录
+2. **更新版本号** —— 同步写 `package.json` 与 `package-lock.json`
+3. **构建** —— `npm run build`（含 `vue-tsc` 类型检查）
+4. **发布物自检** —— 见下
+5. **版本占用检查** —— registry 上已存在同名版本则中止
+6. **提交并打 tag** —— 只 stage `package.json` / `package-lock.json`，然后 `git push` + `git push --tags`
+7. **发布** —— `npm publish --tag <dist-tag>`
+8. **发布后校验** —— 轮询 registry 直到该版本可见，并检查 dist-tags 没被污染
+
+### 常用参数
+
+| 参数 | 说明 |
+| --- | --- |
+| `--dry-run` | 只打印计划。**构建与 `npm pack` 仍会真跑**，因为发布物自检必须基于真实产物 |
+| `--skip-push` | 提交但不 push |
+| `--skip-publish` | 只到提交为止，不发 npm |
+| `--skip-build` | 跳过构建（自检会基于旧 `dist`，慎用） |
+| `--yes` / `-y` | 所有询问取默认答案 |
+| `--version=0.1.0` | 指定版本号；不传则自动递增（`0.1.0-beta.7` → `0.1.0-beta.8`）。**从预发布转正式版必须显式指定** |
+| `--tag=next` | 覆盖 npm dist-tag |
+
+### dist-tag 是自动的，这点很重要
+
+`0.1.0-beta.8` 这类带预发布标识的版本会自动发到 `beta` 标签，而不是 `latest`。
+
+npm 本身**不会**替你避开 `latest`——不加 `--tag` 就会把 beta 顶成 `latest`，让所有 `npm i zen-ai-chat-ui` 的消费方装到 beta 版。脚本会强制带上 `--tag`，并在第 8 步复查 `latest` 有没有被预发布版本污染。
+
+### 发布物自检（第 4 步）为什么必须存在
+
+`package.json#files` 是逐条列举的白名单，缺文件的问题**在本地永远复现不了**（本地有全部文件），只有把真实 tarball 清单拉出来比对才发现得了。脚本用三道互相独立的网卡住：
+
+| 检查 | 拦住的问题 |
+| --- | --- |
+| ① `dist/` 关键工件存在 | `vite.config.ts` 的 `lib.fileName` / `assetFileNames` 被改动导致产物改名（消费方 `import 'zen-ai-chat-ui/style.css'` 会直接 404） |
+| ② 真实 `npm pack --dry-run` 清单 | `files` 白名单里的东西被 `.npmignore` / `.gitignore` 反手排除 |
+| ③ `main` / `module` / `types` / `exports` 指向的文件确实在包里 | 改了目录结构却漏改 `exports`，消费方 import 时模块解析失败 |
+
+任一失败都会中止发布，不会产生"发出去才发现装不上"的包。
 
 ## License
 
