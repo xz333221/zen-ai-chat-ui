@@ -50,6 +50,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
+    "build:avatars": "node scripts/build-avatars.mjs",
     "release": "node scripts/release.js"
   },
   "peerDependencies": {

@@ -98,8 +98,8 @@ async function onSend({ text, files }: { text: string; files: any[] }) {
 | `welcomeTitle`      | `string`                   | 见默认     | 开场白标题            |
 | `welcomeDescription`| `string`                   | 见默认     | 开场白描述            |
 | `assistantName`     | `string`                   | `'AI 助手'`| 模型名称              |
-| `assistantAvatar`   | `string`                   | -          | 模型头像 URL          |
-| `userAvatar`        | `string`                   | -          | 用户头像 URL          |
+| `assistantAvatar`   | `string`                   | -          | 模型头像：URL / data URL，或内置键名如 `'claude'` |
+| `userAvatar`        | `string`                   | -          | 用户头像：URL / data URL，或内置键名 |
 | `theme`             | `'light' \| 'dark' \| 'auto'` | `'light'`  | 主题                  |
 | `disabled`          | `boolean`                  | `false`    | 禁用输入（生成中）    |
 | `uploadConfig`      | `Partial<UploadConfig>`    | `{}`       | 附件上传配置          |
@@ -222,6 +222,67 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 ```vue
 <MessageActions role="assistant" :copy-text="answer" :show-retry="true" @retry="onRetry" />
 ```
+
+## 内置 AI 品牌头像
+
+除了让用户自己填头像 URL，组件库还内置了 13 个知名 AI 产品的头像，零配置直接用。
+
+![内置 AI 品牌头像](docs/avatars.png)
+
+```vue
+<script setup lang="ts">
+import { ChatContainer, AI_AVATARS, resolveAvatar } from 'zen-ai-chat-ui'
+</script>
+
+<template>
+  <!-- 1) 直接按键名取用（有类型提示，写错会报错） -->
+  <ChatContainer :messages="messages" :assistant-avatar="AI_AVATARS.claude" />
+
+  <!-- 2) 业务里存的是厂商字符串时，用 resolveAvatar 兜底 -->
+  <ChatContainer :messages="messages" :assistant-avatar="resolveAvatar(model.provider)" />
+</template>
+```
+
+`resolveAvatar` 的设计意图是**透传**：已知键名返回内置头像，未知值原样返回。所以你可以放心把「数据库里的厂商名 or 用户自填的 URL or emoji」直接丢给它，不用写 `if/else`。
+
+### 可用键名
+
+`claude` · `codex` · `kimi` · `opencode` · `zcode` · `openai` · `gemini` · `mistral` · `copilot` · `cursor` · `perplexity` · `ollama` · `huggingface`
+
+对应的具名导出为 `avatarClaude`、`avatarCodex`…，也可以按需 tree-shaking 引入：
+
+```ts
+import { avatarClaude } from 'zen-ai-chat-ui'
+```
+
+### 渲染「选择头像」列表
+
+`AI_AVATAR_PRESETS` 提供每个头像的元信息（`key` / `name` / `vendor` / `color` / `src`），适合直接 `v-for` 成头像选择器：
+
+```vue
+<script setup lang="ts">
+import { AI_AVATAR_PRESETS } from 'zen-ai-chat-ui'
+
+const emit = defineEmits<{ pick: [key: string] }>()
+</script>
+
+<template>
+  <button
+    v-for="p in AI_AVATAR_PRESETS"
+    :key="p.key"
+    :title="`${p.name} · ${p.vendor}`"
+    @click="emit('pick', p.key)"
+  >
+    <img :src="p.src" :alt="p.name" width="32" height="32" />
+  </button>
+</template>
+```
+
+### 说明
+
+- 所有头像都会被规范化成 **64×64、白色圆底**的 SVG data URL，并以**几何平均边长**对齐视觉尺寸——宽扁的 Logo（如 Claude）不会被缩得比方形 Logo 小一圈。全部 13 个合计约 18.8 KB，已在包内，运行时零请求。
+- 源 SVG 保留在 `src/avatars/svg/`，生成脚本是 `scripts/build-avatars.mjs`（`npm run build:avatars`）。**`src/avatars/index.ts` 是生成产物，请勿手改**。
+- 许可：`simple-icons` 来源的部分为 CC0 1.0；其余为各厂商官方标识，版权归各自所有者，此处仅用于指代对应产品。详见 [`src/avatars/README.md`](src/avatars/README.md)。
 
 ## 追问建议
 

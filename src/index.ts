@@ -30,6 +30,26 @@ export { useStreaming } from './composables/useStreaming'
 // 工具
 export { formatFileSize, isImageType, uid } from './utils/format'
 
+// 内置 AI 品牌头像（由 scripts/build-avatars.mjs 生成）
+export {
+  AI_AVATARS,
+  AI_AVATAR_PRESETS,
+  resolveAvatar,
+  avatarClaude,
+  avatarCodex,
+  avatarKimi,
+  avatarOpencode,
+  avatarZcode,
+  avatarOpenai,
+  avatarGemini,
+  avatarMistral,
+  avatarCopilot,
+  avatarCursor,
+  avatarPerplexity,
+  avatarOllama,
+  avatarHuggingface
+} from './avatars'
+
 // 类型
 export type {
   MessageRole,
@@ -50,6 +70,8 @@ export type {
   UploadConfig,
   SelectedFile
 } from './types'
+
+export type { AiAvatarKey, AiAvatarPreset } from './avatars'
 
 // 组件 Vue 插件安装（可选：app.use(AiChatUi)）
 import type { App } from 'vue'
