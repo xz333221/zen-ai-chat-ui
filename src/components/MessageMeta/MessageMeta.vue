@@ -169,7 +169,7 @@ const rendered = computed<RenderedItem[]>(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 0;
-  font-size: 11px;
+  font-size: var(--acu-font-size-2xs);
   line-height: 1.6;
   color: var(--acu-text-muted);
   // 数字等宽，避免流式期间耗时跳动带动整行左右抖

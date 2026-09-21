@@ -148,7 +148,7 @@ const headerLabel = computed(() => {
   align-items: center;
   gap: var(--acu-space-2);
   width: 100%;
-  padding: 6px 10px;
+  padding: var(--acu-space-1-5) var(--acu-space-2-5);
   margin-bottom: var(--acu-space-1);
   border: 1px dashed var(--acu-border);
   border-radius: var(--acu-radius-sm);

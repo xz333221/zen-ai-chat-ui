@@ -180,6 +180,11 @@ async function handleCopy() {
     border-color: var(--acu-border);
   }
 
+  &:active {
+    color: var(--acu-primary-active);
+    background: var(--acu-surface-hover);
+  }
+
   &.is-done {
     color: var(--acu-success);
   }
@@ -190,12 +195,12 @@ async function handleCopy() {
   position: absolute;
   bottom: calc(100% + 4px);
   left: 0;
-  padding: 2px 7px;
+  padding: var(--acu-space-0-5) var(--acu-space-2);
   border-radius: var(--acu-radius-xs);
   background: var(--acu-text);
   color: var(--acu-bg);
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: var(--acu-font-size-2xs);
+  line-height: var(--acu-line-height-tight);
   white-space: nowrap;
   pointer-events: none;
   z-index: 3;

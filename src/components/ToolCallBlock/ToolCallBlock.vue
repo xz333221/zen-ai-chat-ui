@@ -98,7 +98,7 @@ function formatArgs(args: string): string {
   align-items: center;
   gap: var(--acu-space-2);
   width: 100%;
-  padding: 6px 10px;
+  padding: var(--acu-space-1-5) var(--acu-space-2-5);
   border: none;
   background: transparent;
   cursor: pointer;
@@ -137,15 +137,15 @@ function formatArgs(args: string): string {
 .acu-toolcall-name {
   font-weight: 600;
   color: var(--acu-text);
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-  font-size: 12px;
+  font-family: var(--acu-font-mono);
+  font-size: var(--acu-font-size-xs);
   flex-shrink: 0;
 }
 
 .acu-toolcall-args {
   color: var(--acu-text-muted);
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-  font-size: 12px;
+  font-family: var(--acu-font-mono);
+  font-size: var(--acu-font-size-xs);
   @include acu-ellipsis(1);
   min-width: 0;
 }
@@ -174,21 +174,21 @@ function formatArgs(args: string): string {
 }
 
 .acu-toolcall-section-label {
-  font-size: 11px;
+  font-size: var(--acu-font-size-2xs);
   color: var(--acu-text-muted);
-  margin-bottom: 4px;
+  margin-bottom: var(--acu-space-1);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .acu-toolcall-pre {
   margin: 0;
-  padding: 8px 10px;
+  padding: var(--acu-space-2) var(--acu-space-2-5);
   background: var(--acu-surface);
   border-radius: var(--acu-radius-xs);
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.5;
+  font-family: var(--acu-font-mono);
+  font-size: var(--acu-font-size-xs);
+  line-height: var(--acu-line-height-tight);
   white-space: pre-wrap;
   word-break: break-all;
   max-height: 300px;
@@ -203,7 +203,11 @@ function formatArgs(args: string): string {
 // 动画
 .acu-toolcall-slide-enter-active,
 .acu-toolcall-slide-leave-active {
-  transition: all var(--acu-duration-fast) var(--acu-easing);
+  // 折叠动画只需要这几个属性；写成 all 会把子元素的任意样式变化也纳入过渡
+  transition: max-height var(--acu-duration-fast) var(--acu-easing),
+    opacity var(--acu-duration-fast) var(--acu-easing),
+    padding-top var(--acu-duration-fast) var(--acu-easing),
+    padding-bottom var(--acu-duration-fast) var(--acu-easing);
   overflow: hidden;
 }
 .acu-toolcall-slide-enter-from,

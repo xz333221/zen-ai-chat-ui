@@ -380,7 +380,7 @@ defineExpose({ scrollToBottom })
 .acu-message-list-inner {
   display: flex;
   flex-direction: column;
-  gap: var(--acu-space-5);
+  gap: var(--acu-turn-gap);
   max-width: var(--acu-max-width);
   width: 100%;
   margin: 0 auto;
@@ -403,13 +403,20 @@ defineExpose({ scrollToBottom })
   border-radius: var(--acu-radius-full);
   cursor: pointer;
   box-shadow: var(--acu-shadow);
-  transition: all var(--acu-duration) var(--acu-easing);
+  transition: color var(--acu-duration) var(--acu-easing),
+    border-color var(--acu-duration) var(--acu-easing),
+    background-color var(--acu-duration) var(--acu-easing),
+    transform var(--acu-duration) var(--acu-easing);
   z-index: 2;
   margin: 0 auto;
 
   &:hover {
     color: var(--acu-primary);
     border-color: var(--acu-primary);
+  }
+
+  &:active {
+    transform: translateX(-50%) translateY(1px);
   }
 }
 

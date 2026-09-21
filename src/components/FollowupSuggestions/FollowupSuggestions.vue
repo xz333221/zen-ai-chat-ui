@@ -77,9 +77,9 @@ const visible = computed(() => props.loading || (props.items && props.items.leng
   padding-left: calc(var(--acu-avatar-size) + var(--acu-space-3));
   margin-top: var(--acu-space-3);
   margin-bottom: var(--acu-space-2);
-  // 自适应宽度：跟随内容长度，但不超过气泡最大宽度
+  // 自适应宽度：跟随内容长度，但不超过气泡最大宽度（与气泡同一个令牌，左右边缘对齐）
   width: fit-content;
-  max-width: min(680px, 78%);
+  max-width: var(--acu-bubble-max-width);
   // 在 flex 父级（如 .acu-message-list-inner）下不强制拉伸
   align-self: flex-start;
   animation: acu-followup-in 0.28s var(--acu-easing) both;
@@ -127,7 +127,7 @@ const visible = computed(() => props.loading || (props.items && props.items.leng
   display: inline-flex;
   align-items: center;
   gap: var(--acu-space-3);
-  padding: 10px 14px;
+  padding: var(--acu-space-2-5) var(--acu-space-3-5);
   font-family: inherit;
   font-size: var(--acu-font-size-sm);
   color: var(--acu-text-secondary);
@@ -139,7 +139,10 @@ const visible = computed(() => props.loading || (props.items && props.items.leng
   // 跟随内容自适宽度，但不超过 list 容器
   width: auto;
   max-width: 100%;
-  transition: all var(--acu-duration) var(--acu-easing);
+  transition: color var(--acu-duration) var(--acu-easing),
+    background-color var(--acu-duration) var(--acu-easing),
+    border-color var(--acu-duration) var(--acu-easing),
+    transform var(--acu-duration) var(--acu-easing);
   @include acu-focus-ring;
 
   &:hover {
@@ -154,6 +157,7 @@ const visible = computed(() => props.loading || (props.items && props.items.leng
   }
 
   &:active {
+    background: var(--acu-primary-soft-hover);
     transform: translateY(0.5px);
   }
 }

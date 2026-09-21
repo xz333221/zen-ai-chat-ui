@@ -92,6 +92,21 @@ defineEmits<{
   display: flex;
   flex-direction: column;
   align-items: center;
+  // 空态入场：轻微上浮淡入，比「整块突然出现」柔和。
+  // 不使用 animation-fill-mode: both 之外的花样——base.scss 的
+  // prefers-reduced-motion 规则会把时长压到 0.01ms，本动画自动失效。
+  animation: acu-welcome-in 0.36s var(--acu-easing) both;
+}
+
+@keyframes acu-welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .acu-welcome-logo {
@@ -108,7 +123,7 @@ defineEmits<{
 }
 
 .acu-welcome-title {
-  font-size: 22px;
+  font-size: var(--acu-font-size-2xl);
   font-weight: 650;
   color: var(--acu-text);
   margin: 0 0 var(--acu-space-2);
@@ -145,7 +160,10 @@ defineEmits<{
   border-radius: var(--acu-radius);
   cursor: pointer;
   font-family: inherit;
-  transition: all var(--acu-duration) var(--acu-easing);
+  transition: border-color var(--acu-duration) var(--acu-easing),
+    background-color var(--acu-duration) var(--acu-easing),
+    box-shadow var(--acu-duration) var(--acu-easing),
+    transform var(--acu-duration) var(--acu-easing);
   @include acu-focus-ring;
 
   &:hover {
@@ -158,6 +176,12 @@ defineEmits<{
       color: var(--acu-primary);
       transform: translate(2px, -2px);
     }
+  }
+
+  // 按下回收：hover 抬起 1px，按下落回 0，手感上有「按下去」的闭合
+  &:active {
+    transform: translateY(0);
+    box-shadow: none;
   }
 }
 

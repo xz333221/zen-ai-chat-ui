@@ -451,6 +451,9 @@ defineExpose({
   &:hover {
     transform: scale(1.12);
   }
+  &:active {
+    transform: scale(1.02);
+  }
 }
 
 .acu-input-row {
@@ -472,11 +475,15 @@ defineExpose({
   color: var(--acu-text-muted);
   border-radius: var(--acu-radius-sm);
   cursor: pointer;
-  transition: all var(--acu-duration-fast) var(--acu-easing);
+  transition: background-color var(--acu-duration-fast) var(--acu-easing),
+    color var(--acu-duration-fast) var(--acu-easing);
   @include acu-focus-ring;
   &:hover:not(:disabled) {
     background: var(--acu-surface-2);
     color: var(--acu-text);
+  }
+  &:active:not(:disabled) {
+    background: var(--acu-surface-hover);
   }
 }
 
@@ -488,13 +495,13 @@ defineExpose({
   flex: 1;
   min-height: 36px;
   max-height: 200px;
-  padding: 8px 4px;
+  padding: var(--acu-space-2) var(--acu-space-1);
   border: none;
   background: transparent;
   resize: none;
   font-family: inherit;
   font-size: var(--acu-font-size-md);
-  line-height: 1.5;
+  line-height: var(--acu-line-height-tight);
   color: var(--acu-text);
   outline: none;
   @include acu-scrollbar(4px);
@@ -519,13 +526,16 @@ defineExpose({
   color: var(--acu-primary-contrast);
   border-radius: var(--acu-radius-sm);
   cursor: pointer;
-  transition: all var(--acu-duration-fast) var(--acu-easing);
+  transition: background-color var(--acu-duration-fast) var(--acu-easing),
+    color var(--acu-duration-fast) var(--acu-easing),
+    transform var(--acu-duration-fast) var(--acu-easing);
   @include acu-focus-ring;
   &:hover:not(:disabled) {
     background: var(--acu-primary-hover);
   }
   &:active:not(:disabled) {
     background: var(--acu-primary-active);
+    transform: scale(0.94);
   }
   &:disabled {
     background: var(--acu-surface-2);

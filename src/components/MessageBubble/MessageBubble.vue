@@ -319,6 +319,14 @@ const showRetryAction = computed(() => {
   &.is-user {
     justify-content: flex-end;
   }
+
+  // 新的一轮（用户提问）与上一轮之间再拉开一点。
+  // 列表的 flex gap 对每条消息一视同仁，光靠它「一轮」的边界是看不出来的；
+  // 给提问行补一点上边距，视线就能一眼分出「上一轮结束 / 新一轮开始」。
+  // 首条 user（会话开头）不加，避免顶部凭空多一截空白。
+  &.is-user:not(:first-child) {
+    margin-top: var(--acu-space-2);
+  }
 }
 
 // —— 操作栏 / 元信息的显隐 —— //
@@ -411,7 +419,7 @@ const showRetryAction = computed(() => {
 
 .acu-bubble-main {
   min-width: 0;
-  max-width: min(680px, 78%);
+  max-width: var(--acu-bubble-max-width);
   display: flex;
   flex-direction: column;
 
@@ -441,6 +449,10 @@ const showRetryAction = computed(() => {
     background: var(--acu-bubble-assistant-bg);
     color: var(--acu-bubble-assistant-text);
     border-top-left-radius: var(--acu-radius-xs);
+    // 内描边而不是 border：加 border 会把气泡撑大 2px、整列跟着抖一下，
+    // inset 阴影贴着 border-radius 画在里面，零布局影响。
+    // 浅色下这是气泡「能被看见」的关键（surface 与 bg 只差 3% 明度）。
+    box-shadow: inset 0 0 0 1px var(--acu-bubble-assistant-border);
   }
 
   &.is-user {
@@ -551,7 +563,7 @@ const showRetryAction = computed(() => {
   border: 1px solid currentColor;
   background: transparent;
   color: inherit;
-  padding: 2px 10px;
+  padding: var(--acu-space-0-5) var(--acu-space-2-5);
   border-radius: var(--acu-radius-xs);
   font-size: var(--acu-font-size-xs);
   font-family: inherit;
@@ -559,6 +571,9 @@ const showRetryAction = computed(() => {
   transition: opacity var(--acu-duration-fast) var(--acu-easing);
   &:hover {
     opacity: 0.75;
+  }
+  &:active {
+    opacity: 0.6;
   }
 }
 </style>

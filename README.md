@@ -17,6 +17,8 @@
 - **内容列宽度可配**：开场白、消息列表、输入框共享同一个 `maxWidth`（默认 `100%` 跟随容器），不会再出现「开场白 640 / 消息 768」那种对不齐
 - **双主题**：浅色 / 深色 / 跟随系统，通过 CSS 变量驱动，可深度定制
 - **样式自洽**：所有组件带 `acu-` 前缀，CSS 变量作用域隔离，不污染宿主
+- **令牌收敛**：字号 / 间距 / 圆角 / 动效 / 状态色全部走 `--acu-*` 令牌，组件内不写死色值与尺寸；正文轮次间距、气泡列宽、过渡节奏都能一处改全局生效
+- **可访问性**：可交互元素带 `:focus-visible` 焦点环，过渡属性显式声明（不用 `transition: all`），`prefers-reduced-motion` 下自动关闭动画
 
 ## 安装
 
@@ -291,7 +293,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 - 缩略图带 `cursor: zoom-in` 与 `role="button"`，可键盘聚焦（Enter / Space 打开）
 - 灯箱通过 `Teleport` 挂到 `body`，不受宿主容器 `overflow` 裁剪
 - 多图时显示左右切换按钮与 `当前 / 总数` 计数；支持键盘 `←` `→` 切换、`Esc` 关闭、点背景关闭
-- 灯箱底色固定为深色半透明（这是图片查看器的通用惯例），不跟随主题
+- 灯箱底色默认固定为深色半透明（这是图片查看器的通用惯例），**不跟随组件主题**；配色来自一组定义在裸 `:root`、不随 `[data-theme]` 变化的令牌，想换浅色灯箱覆盖 `--acu-overlay-scrim` / `--acu-overlay-text` / `--acu-overlay-surface` / `--acu-overlay-surface-hover` / `--acu-overlay-ring` / `--acu-overlay-shadow` 即可
 
 ![图片点击放大预览（灯箱）](docs/image-preview.png)
 
@@ -806,6 +808,20 @@ messages.value.push({
   --acu-radius: 14px;           /* 圆角 */
 }
 ```
+
+组件只消费令牌、不写死色值，所以下面这些「几何/节奏」类令牌也都能改：
+
+| 令牌 | 默认 | 作用 |
+| --- | --- | --- |
+| `--acu-bubble-max-width` | `min(680px, 78%)` | 气泡与追问卡的最大宽度（同一列，改一处两处对齐） |
+| `--acu-bubble-assistant-border` | `#e7e7ea` / 深色 `transparent` | assistant 气泡的内描边（用 inset 阴影实现，不占布局） |
+| `--acu-turn-gap` | `20px` | 相邻两轮问答之间的间距 |
+| `--acu-space-0-5` `-1-5` `-2-5` `-3-5` | `2px` `6px` `10px` `14px` | 半步间距刻度 |
+| `--acu-font-size-2xs` / `-2xl` | `11px` / `22px` | 元信息等小字 / 开场白标题 |
+| `--acu-line-height-tight` / `-relaxed` | `1.5` / `1.7` | 单行控件 / 长文（思考、代码） |
+| `--acu-overlay-*` | 深色系 | 图片灯箱配色（定义在裸 `:root`，不随主题变化） |
+
+> `--acu-bubble-assistant-border` 用的是 `inset` 阴影而不是 `border`：加 `border` 会把气泡撑大 2px、整列跟着抖一下，inset 阴影贴着圆角画在里面，零布局影响。
 
 ## 本地开发
 

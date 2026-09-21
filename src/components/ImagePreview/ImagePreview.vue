@@ -4,10 +4,13 @@
     Teleport 到 body：附件缩略图常常处在 overflow:hidden / 窄容器里，
     留在原地会被裁掉，也没法盖住整屏。
 
-    配色刻意写死成深色而不是跟随 --acu-* 变量：
-    1) Teleport 之后脱离了 .acu-root[data-theme] 的作用域，变量取不到；
+    配色默认固定为深色（不跟随组件主题）：
+    1) Teleport 之后脱离了 .acu-root[data-theme] 的作用域，只能吃到挂在
+       html/:root 上的变量——所以灯箱用的是 --acu-overlay-* 这一组定义在
+       裸 :root、不随 [data-theme] 变化的令牌，并且每处都写了字面量兜底；
     2) 图片查看器用深底是通行做法（macOS 预览、Google Photos 都这样），
        深底不会影响对图片本身颜色的判断。
+    想改成浅色灯箱，覆盖 :root 上的 --acu-overlay-* 即可。
   -->
   <Teleport v-if="visible" to="body">
     <div
@@ -136,7 +139,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 56px 64px;
-  background: rgba(9, 9, 11, 0.88);
+  background: var(--acu-overlay-scrim, rgba(9, 9, 11, 0.88));
   backdrop-filter: blur(3px);
   animation: acu-ip-in 0.16s ease-out;
   // 灯箱自己不该被滚动带走
@@ -157,7 +160,7 @@ onBeforeUnmount(() => {
   max-height: 100%;
   object-fit: contain;
   border-radius: 6px;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--acu-overlay-shadow, 0 18px 60px rgba(0, 0, 0, 0.55));
   // 图片本体可点（不关闭），但光标给个提示
   cursor: default;
 }
@@ -169,18 +172,18 @@ onBeforeUnmount(() => {
   justify-content: center;
   padding: 0;
   border: none;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fafafa;
+  border-radius: var(--acu-radius-full, 999px);
+  background: var(--acu-overlay-surface, rgba(255, 255, 255, 0.12));
+  color: var(--acu-overlay-text, #fafafa);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--acu-duration-fast, 0.12s) ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.24);
+    background: var(--acu-overlay-surface-hover, rgba(255, 255, 255, 0.24));
   }
 
   &:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline: 2px solid var(--acu-overlay-ring, rgba(255, 255, 255, 0.7));
     outline-offset: 2px;
   }
 
@@ -221,8 +224,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.72);
+  font-size: var(--acu-font-size-xs, 12px);
+  color: var(--acu-overlay-text-muted, rgba(255, 255, 255, 0.72));
   user-select: none;
 }
 

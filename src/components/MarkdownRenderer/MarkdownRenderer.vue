@@ -284,7 +284,7 @@ function onCodeCopyClick(e: MouseEvent) {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 8px;
+    padding: var(--acu-space-1) var(--acu-space-2);
     border: none;
     background: transparent;
     color: var(--acu-text-muted);
@@ -292,13 +292,17 @@ function onCodeCopyClick(e: MouseEvent) {
     font-family: inherit;
     border-radius: var(--acu-radius-xs);
     cursor: pointer;
-    transition: all var(--acu-duration-fast) var(--acu-easing);
+    transition: background-color var(--acu-duration-fast) var(--acu-easing),
+      color var(--acu-duration-fast) var(--acu-easing);
     svg {
       display: block;
     }
     &:hover {
       background: var(--acu-surface-2);
       color: var(--acu-text);
+    }
+    &:active {
+      background: var(--acu-surface-hover);
     }
     &.is-copied {
       color: var(--acu-success);

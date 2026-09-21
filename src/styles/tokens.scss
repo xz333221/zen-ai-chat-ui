@@ -87,8 +87,12 @@
   font-family: inherit;
   font-size: var(--acu-font-size-base);
   line-height: 1;
-  transition: background-color 0.15s ease, border-color 0.15s ease,
-    color 0.15s ease, opacity 0.15s ease;
+  // 用令牌而不是写死 0.15s ease：宿主换掉 --acu-duration-fast / --acu-easing
+  // 时，所有按钮的反馈节奏会跟着一起变（以前这里会「漏」掉）
+  transition: background-color var(--acu-duration-fast) var(--acu-easing),
+    border-color var(--acu-duration-fast) var(--acu-easing),
+    color var(--acu-duration-fast) var(--acu-easing),
+    opacity var(--acu-duration-fast) var(--acu-easing);
   user-select: none;
   &:disabled {
     cursor: not-allowed;

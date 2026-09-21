@@ -279,7 +279,7 @@ defineExpose({ hovering })
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 6px;
+  padding: var(--acu-space-1-5);
   border-radius: var(--acu-radius);
   opacity: var(--acu-rail-idle, 0.3);
   transition: opacity var(--acu-duration) var(--acu-easing);
@@ -307,7 +307,7 @@ defineExpose({ hovering })
   flex: 0 0 auto;
   padding: 0;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--acu-radius-full);
   background: var(--acu-text-muted);
   cursor: pointer;
   transition: background-color var(--acu-duration) var(--acu-easing);
@@ -357,7 +357,7 @@ defineExpose({ hovering })
   width: max-content;
   min-width: 150px;
   max-width: 260px;
-  padding: 7px 10px;
+  padding: var(--acu-space-1-5) var(--acu-space-2-5);
   background: var(--acu-text);
   color: var(--acu-bg);
   border-radius: var(--acu-radius-sm);

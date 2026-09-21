@@ -173,7 +173,7 @@
   border-top: 1px dashed var(--acu-thinking-border);
   color: var(--acu-thinking-text);
   font-size: var(--acu-font-size-sm);
-  line-height: 1.7;
+  line-height: var(--acu-line-height-relaxed);
 }
 
 // 思考正文超高后内部滚动。
