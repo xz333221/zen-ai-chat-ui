@@ -102,6 +102,89 @@ export interface ThinkingConfig {
 }
 
 /**
+ * token 用量。
+ *
+ * 只能由消费方从接口响应里取（各家字段名不同），组件库不做估算——
+ * 估算出来的数字看着像真的，但会误导用户，比不显示更糟。
+ */
+export interface TokenUsage {
+  /** 输入（prompt）tokens */
+  prompt?: number
+  /** 输出（completion）tokens */
+  completion?: number
+  /**
+   * 总 tokens。不传时由 prompt + completion 推导，
+   * 两者也没有则该项不展示
+   */
+  total?: number
+  /** 思维链（reasoning）tokens，o1 / R1 类模型才有 */
+  reasoning?: number
+  /** 命中 prompt cache 的 tokens */
+  cached?: number
+}
+
+/** 自定义元信息项，原样渲染在末尾 */
+export interface MessageMetaExtra {
+  /** 展示文案，例如「模型」 */
+  label?: string
+  /** 展示值，例如「MiniMax-M3」 */
+  value: string
+  /** 悬停提示 */
+  title?: string
+}
+
+/**
+ * 单条消息的运行元信息（耗时 / token 用量）。
+ *
+ * 耗时字段如果留空，`useStreaming().finish()` 会用内部时间戳自动回填，
+ * 消费方一般只需要自己塞 `usage`。
+ */
+export interface MessageStats {
+  /** 回答总耗时（毫秒） */
+  durationMs?: number
+  /** 首字延迟（毫秒）：从发起到第一个分片到达。流式体验的关键指标 */
+  firstTokenMs?: number
+  /** token 用量 */
+  usage?: TokenUsage
+  /** 附加自定义项（模型名、检索命中数…） */
+  extra?: MessageMetaExtra[]
+}
+
+/** 元信息行里可展示的内置项 */
+export type MessageMetaItem = 'duration' | 'firstToken' | 'tokens' | 'time'
+
+/**
+ * 消息元信息展示配置（气泡下方那行 `1.2s · ↑1,234 ↓5,678`）。
+ */
+export interface MessageMetaConfig {
+  /**
+   * 是否展示元信息行。
+   *
+   * 默认关闭：这是新增的可见元素，默认打开会让既有布局多出一行。
+   * @default false
+   */
+  enable?: boolean
+  /**
+   * 要展示哪些项，按数组顺序渲染
+   * @default ['duration', 'tokens']
+   */
+  items?: MessageMetaItem[]
+  /**
+   * 元信息与操作栏的排布
+   * - `inline`：同一行，操作栏贴外侧、元信息贴内侧（紧凑）
+   * - `below`：操作栏下面单独一行
+   * @default 'inline'
+   */
+  position?: 'inline' | 'below'
+  /**
+   * 是否也展示 user 消息的元信息。
+   * user 消息通常只有「时间」有意义
+   * @default false
+   */
+  showForUser?: boolean
+}
+
+/**
  * 消息操作栏配置（气泡下方的复制 / 重新生成按钮）。
  */
 export interface MessageActionsConfig {
@@ -153,6 +236,18 @@ export interface ChatMessage {
   toolCalls?: ToolCall[]
   /** 创建时间戳 */
   createdAt?: number
+  /**
+   * 生成结束时间戳。
+   * 由 `useStreaming().finish()` 自动写入，用于推导耗时；也可自行赋值
+   */
+  finishedAt?: number
+  /**
+   * 第一个分片到达的时间戳。
+   * 由 `useStreaming().append()` 自动写入，用于推导首字延迟
+   */
+  firstTokenAt?: number
+  /** 耗时 / token 用量等运行元信息 */
+  meta?: MessageStats
   /** 错误信息（status === 'error' 时） */
   error?: string
   /** 头像覆盖（URL） */

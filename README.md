@@ -9,6 +9,7 @@
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
+- **运行元信息**：可选在气泡下方展示回答耗时、首字延迟、token 用量（`1.2s · 510ms · ↑26 ↓571`），耗时由 `useStreaming` 自动计时
 - **Markdown 渲染**：基于 markdown-it + Shiki，双主题代码高亮、表格、引用、任务列表，代码块带语言标签与一键复制
 - **附件上传**：点击 / 拖拽，图片缩略图预览，文件卡片，可移除
 - **开场白 + 预设问题**：首屏欢迎语 + 可点击的话题卡片
@@ -229,6 +230,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `toolCallsConfig`   | `ToolCallsConfig`          | -          | 工具调用展示配置（详见下方） |
 | `thinkingConfig`    | `ThinkingConfig`           | -          | 思考块展示配置（详见下方） |
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
+| `messageMetaConfig` | `MessageMetaConfig`        | -          | 耗时 / token 元信息行配置（详见下方） |
 
 | Event              | Payload                                                | 说明             |
 | ------------------ | ------------------------------------------------------ | ---------------- |
@@ -240,7 +242,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 
 ### 其他可独立使用的组件
 
-`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer`、`FollowupSuggestions` 均已导出，可单独使用。
+`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer`、`FollowupSuggestions` 均已导出，可单独使用。
 
 ## 工具调用
 
@@ -346,6 +348,136 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 ```vue
 <MessageActions role="assistant" :copy-text="answer" :show-retry="true" @retry="onRetry" />
 ```
+
+## 运行元信息（耗时 / token）
+
+在气泡下方多出一行 `21s · 510ms · ↑26 ↓571`，告诉你这次回答花了多久、吐了多少 token。
+
+![消息元信息](docs/message-meta.png)
+
+**默认关闭**，需要显式打开——它是新增的可见元素，默认打开会让所有既有页面的每条消息都多一行：
+
+```vue
+<ChatContainer
+  :messages="messages"
+  :message-meta-config="{ enable: true }"
+  @send="onSend"
+/>
+```
+
+### 耗时是自动的，token 不是
+
+耗时不需要你做任何事：`useStreaming` 在 `createAssistant` 时记下 `createdAt`，第一个分片到达时记下 `firstTokenAt`，`finish()` 时记下 `finishedAt` 并把折算结果写进 `message.meta`。
+
+**token 必须你自己塞**，因为它只能来自接口响应（OpenAI 用 `usage.prompt_tokens`，Anthropic 用 `usage.input_tokens`，字段名各家不同）：
+
+```ts
+const assistant = streaming.createAssistant()
+messages.value.push(assistant)
+
+const res = await fetch('/api/chat', { method: 'POST', signal: ctrl.signal, body })
+for await (const chunk of parseSSE(res)) {
+  streaming.append(assistant, chunk)
+}
+
+// 流结束后通常还会来一个带 usage 的收尾事件
+assistant.meta = {
+  ...(assistant.meta ?? {}),
+  usage: {
+    prompt: usage.prompt_tokens,
+    completion: usage.completion_tokens,
+    total: usage.total_tokens,
+    reasoning: usage.completion_tokens_details?.reasoning_tokens,
+    cached: usage.prompt_tokens_details?.cached_tokens
+  }
+}
+streaming.finish(assistant)
+```
+
+> 组件库**不做 token 估算**。按字符数猜出来的数字看着像真的，但会误导用户，比不显示更糟。
+
+### `MessageMetaConfig` 字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `enable` | `boolean` | `false` | 是否展示元信息行 |
+| `items` | `MessageMetaItem[]` | `['duration', 'tokens']` | 展示哪些项，按数组顺序渲染。可选 `duration`（耗时）/ `firstToken`（首字延迟）/ `tokens` / `time`（发送时间） |
+| `position` | `'inline' \| 'below'` | `'inline'` | `inline` 与操作栏同一行、`below` 单独占一行 |
+| `showForUser` | `boolean` | `false` | 是否也给 user 消息显示（user 侧通常只有 `time` 有意义） |
+
+### 改展示内容
+
+```vue
+<!-- 只留「首字延迟 + token」，换行排布，user 侧也显示发送时间 -->
+<ChatContainer
+  :messages="messages"
+  :message-meta-config="{
+    enable: true,
+    items: ['firstToken', 'tokens', 'time'],
+    position: 'below',
+    showForUser: true
+  }"
+/>
+```
+
+### 附加自定义项
+
+`meta.extra` 里的内容会原样追加到末尾，用来塞模型名、检索命中数这类业务字段：
+
+```ts
+assistant.meta = {
+  ...assistant.meta,
+  extra: [{ label: '模型', value: 'MiniMax-M3', title: '本次使用的模型' }]
+}
+```
+
+渲染结果：`21s · 510ms · ↑26 ↓571 · 模型 MiniMax-M3`
+
+### 逐字段自定义消息
+
+不用 `useStreaming` 也可以，直接把时间戳和用量写在消息对象上：
+
+```ts
+messages.value.push({
+  id: 'a1',
+  role: 'assistant',
+  content: answer,
+  status: 'done',
+  createdAt: t0,          // 可选：不传则耗时项不显示
+  finishedAt: t1,
+  firstTokenAt: t0 + 510,
+  meta: { usage: { prompt: 26, completion: 571 } }
+})
+```
+
+> 耗时优先取 `meta.durationMs`，其次用 `finishedAt - createdAt` 推导。两者都没有时该项自动隐藏，不会显示 `NaN`。
+
+### 「重新生成」要清计时状态
+
+只重置 `content` 会让旧的 `finishedAt` / `firstTokenAt` 留着，新一次生成算出来的耗时是从上一次开始算的——这个 bug 很隐蔽，因为数字看着仍然「像个耗时」。用导出的小工具一把清干净：
+
+```ts
+import { resetStreamTiming } from 'zen-ai-chat-ui'
+
+function onRetry(msg: ChatMessage) {
+  msg.content = ''
+  msg.reasoning = ''
+  msg.error = undefined
+  msg.status = 'streaming'
+  resetStreamTiming(msg)   // 重置 createdAt / finishedAt / firstTokenAt / meta
+  runStream(msg)
+}
+```
+
+### 单独使用 `<MessageMeta>`
+
+它只依赖消息对象，可以塞进自己的气泡组件里：
+
+```vue
+<MessageMeta :message="msg" :config="{ items: ['duration', 'tokens'] }" />
+```
+
+配套的格式化函数也导出了，方便你在别处复用同一套口径：`formatDuration(1234) === '1.2s'`、`formatTokens(12345) === '1.2万'`、`formatClock(Date.now()) === '14:32'`。
 
 ## 内置 AI 品牌头像
 

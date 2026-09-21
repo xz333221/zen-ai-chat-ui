@@ -94,16 +94,23 @@
         </div>
       </div>
 
-      <!-- 气泡下方操作栏：复制（user / assistant）+ 重新生成（assistant） -->
-      <MessageActions
-        v-if="showActions"
-        :role="message.role"
-        :copy-text="copyText"
-        :show-copy="showCopy"
-        :show-retry="showRetryAction"
-        :copied-duration="actionsConfig?.copiedDuration ?? 1600"
-        @retry="$emit('retry', message)"
-      />
+      <!-- 气泡下方：操作栏 + 元信息（耗时 / token / 时间） -->
+      <div
+        v-if="showFooterRow"
+        class="acu-bubble-footer"
+        :class="[`is-${message.role}`, `is-meta-${metaPosition}`]"
+      >
+        <MessageActions
+          v-if="showActions"
+          :role="message.role"
+          :copy-text="copyText"
+          :show-copy="showCopy"
+          :show-retry="showRetryAction"
+          :copied-duration="actionsConfig?.copiedDuration ?? 1600"
+          @retry="$emit('retry', message)"
+        />
+        <MessageMeta v-if="showMeta" :message="message" :config="messageMetaConfig" />
+      </div>
     </div>
 
     <!-- ===== 右侧头像（仅 user） ===== -->
@@ -118,12 +125,19 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ChatMessage, ToolCallsConfig, ThinkingConfig, MessageActionsConfig } from '@/types'
+import type {
+  ChatMessage,
+  ToolCallsConfig,
+  ThinkingConfig,
+  MessageActionsConfig,
+  MessageMetaConfig
+} from '@/types'
 import { formatFileSize, isImageType } from '@/utils/format'
 import MarkdownRenderer from '@/components/MarkdownRenderer/MarkdownRenderer.vue'
 import ThinkingBlock from '@/components/ThinkingBlock/ThinkingBlock.vue'
 import ToolCallGroup from '@/components/ToolCallGroup/ToolCallGroup.vue'
 import MessageActions from '@/components/MessageActions/MessageActions.vue'
+import MessageMeta from '@/components/MessageMeta/MessageMeta.vue'
 import { extractThinkSegments } from '@/composables/useMarkdown'
 
 const props = withDefaults(
@@ -139,6 +153,8 @@ const props = withDefaults(
     thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
     actionsConfig?: MessageActionsConfig
+    /** 元信息行配置（耗时 / token 用量 / 时间） */
+    messageMetaConfig?: MessageMetaConfig
     /** 是否是最后一条 assistant 消息（决定「重新生成」是否出现） */
     isLastAssistant?: boolean
   }>(),
@@ -150,6 +166,7 @@ const props = withDefaults(
     toolCallsConfig: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
+    messageMetaConfig: undefined,
     isLastAssistant: false
   }
 )
@@ -193,6 +210,22 @@ const isStreamingContent = computed(
 const showActions = computed(
   () => props.message.role !== 'system' && props.actionsConfig?.enable !== false
 )
+
+// —— 元信息行（耗时 / token / 时间） —— //
+
+/**
+ * 默认关闭：这是新增的可见元素，默认打开会让所有既有页面的每条消息都多一行。
+ * user 消息还要额外开 showForUser 才显示（user 侧通常只有「时间」有意义）。
+ */
+const showMeta = computed(() => {
+  if (props.messageMetaConfig?.enable !== true) return false
+  if (props.message.role === 'system') return false
+  if (props.message.role === 'user' && props.messageMetaConfig?.showForUser !== true) return false
+  return true
+})
+
+const metaPosition = computed(() => props.messageMetaConfig?.position ?? 'inline')
+const showFooterRow = computed(() => showActions.value || showMeta.value)
 
 /**
  * 复制内容：
@@ -239,6 +272,7 @@ const showRetryAction = computed(() => {
 // —— 操作栏的显隐 —— //
 // 支持 hover 的设备：默认隐藏，悬停整行 / 键盘聚焦时才淡入（不占额外空间，无需布局抖动处理）
 // 触摸设备（无 hover）走 @media 之外的分支：始终可见，否则永远点不到。
+// 注意只作用于操作栏——元信息是信息不是操作，任何时候都不该藏。
 @media (hover: hover) {
   .acu-bubble-row :deep(.acu-message-actions) {
     opacity: 0;
@@ -248,6 +282,42 @@ const showRetryAction = computed(() => {
   .acu-bubble-row:hover :deep(.acu-message-actions),
   .acu-bubble-row:focus-within :deep(.acu-message-actions) {
     opacity: 1;
+  }
+}
+
+// —— 气泡下方一行：操作栏 + 元信息 —— //
+// 两者紧挨着成组，不用 space-between 拉开——否则短消息在 680px 宽的列里
+// 元信息会被推到很远，看着像跟前一条消息的。user 侧用 row-reverse 翻转顺序，
+// 让元信息落在操作栏内侧，整组仍然贴右。
+.acu-bubble-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--acu-space-3);
+  max-width: 100%;
+  // 与气泡的间隔由 footer 自己负责：MessageActions 原本自带 margin-top，
+  // 放进 flex 行后会连 margin 一起参与垂直居中，把操作栏压低 2px，
+  // 和旁边的元信息文字对不齐。这里统一接管、把它归零。
+  margin-top: var(--acu-space-1);
+
+  &.is-user {
+    flex-direction: row-reverse;
+  }
+
+  :deep(.acu-message-actions) {
+    flex: 0 0 auto;
+    margin-top: 0;
+  }
+
+  // position: 'below' —— 操作栏在上、元信息在下
+  &.is-meta-below {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+
+    &.is-user {
+      align-items: flex-end;
+    }
   }
 }
 

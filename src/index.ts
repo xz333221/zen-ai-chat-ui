@@ -17,6 +17,7 @@ export { default as WelcomeScreen } from './components/WelcomeScreen/WelcomeScre
 export { default as ChatInput } from './components/ChatInput/ChatInput.vue'
 export { default as MarkdownRenderer } from './components/MarkdownRenderer/MarkdownRenderer.vue'
 export { default as FollowupSuggestions } from './components/FollowupSuggestions/FollowupSuggestions.vue'
+export { default as MessageMeta } from './components/MessageMeta/MessageMeta.vue'
 
 // composables
 export {
@@ -25,10 +26,10 @@ export {
   ensureHighlighter,
   extractThinkSegments
 } from './composables/useMarkdown'
-export { useStreaming } from './composables/useStreaming'
+export { useStreaming, resetStreamTiming } from './composables/useStreaming'
 
 // 工具
-export { formatFileSize, isImageType, uid } from './utils/format'
+export { formatFileSize, isImageType, uid, formatDuration, formatTokens, formatClock } from './utils/format'
 
 // 内置 AI 品牌头像（由 scripts/build-avatars.mjs 生成）
 export {
@@ -62,6 +63,11 @@ export type {
   ToolCallsConfig,
   ThinkingConfig,
   MessageActionsConfig,
+  TokenUsage,
+  MessageStats,
+  MessageMetaExtra,
+  MessageMetaItem,
+  MessageMetaConfig,
   PresetQuestion,
   FollowupInput,
   FollowupConfig,

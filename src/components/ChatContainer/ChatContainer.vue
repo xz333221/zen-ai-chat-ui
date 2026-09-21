@@ -26,6 +26,7 @@
         :tool-calls-config="toolCallsConfig"
         :thinking-config="thinkingConfig"
         :actions-config="actionsConfig"
+        :message-meta-config="messageMetaConfig"
         @retry="(m) => $emit('retry', m)"
         @followup-select="onFollowupSelect"
       />
@@ -55,7 +56,8 @@ import type {
   FollowupInput,
   ToolCallsConfig,
   ThinkingConfig,
-  MessageActionsConfig
+  MessageActionsConfig,
+  MessageMetaConfig
 } from '@/types'
 import MessageList from '@/components/MessageList/MessageList.vue'
 import WelcomeScreen from '@/components/WelcomeScreen/WelcomeScreen.vue'
@@ -119,6 +121,12 @@ const props = withDefaults(
      * 传 `{ enable: false }` 可整体关闭。
      */
     actionsConfig?: MessageActionsConfig
+    /**
+     * 元信息行配置（耗时 / 首字延迟 / token 用量 / 时间）。
+     * 默认关闭。开启后 assistant 气泡下方会多出一行 `1.2s · ↑1,234 ↓5,678`，
+     * 与操作栏同排；`position: 'below'` 可改为单独一行。
+     */
+    messageMetaConfig?: MessageMetaConfig
   }>(),
   {
     presetQuestions: () => [],
@@ -136,7 +144,8 @@ const props = withDefaults(
     followup: undefined,
     toolCallsConfig: undefined,
     thinkingConfig: undefined,
-    actionsConfig: undefined
+    actionsConfig: undefined,
+    messageMetaConfig: undefined
   }
 )
 

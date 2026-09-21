@@ -17,6 +17,7 @@
           :tool-calls-config="toolCallsConfig"
           :thinking-config="thinkingConfig"
           :actions-config="actionsConfig"
+          :message-meta-config="messageMetaConfig"
           :is-last-assistant="msg.id === lastAssistantId"
           @retry="(m) => $emit('retry', m)"
         />
@@ -55,7 +56,8 @@ import type {
   FollowupConfig,
   ToolCallsConfig,
   ThinkingConfig,
-  MessageActionsConfig
+  MessageActionsConfig,
+  MessageMetaConfig
 } from '@/types'
 import MessageBubble from '@/components/MessageBubble/MessageBubble.vue'
 import FollowupSuggestions from '@/components/FollowupSuggestions/FollowupSuggestions.vue'
@@ -80,6 +82,8 @@ const props = withDefaults(
     thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
     actionsConfig?: MessageActionsConfig
+    /** 元信息行配置（耗时 / token 用量 / 时间） */
+    messageMetaConfig?: MessageMetaConfig
   }>(),
   {
     assistantName: 'AI 助手',
@@ -89,7 +93,8 @@ const props = withDefaults(
     followup: undefined,
     toolCallsConfig: undefined,
     thinkingConfig: undefined,
-    actionsConfig: undefined
+    actionsConfig: undefined,
+    messageMetaConfig: undefined
   }
 )
 

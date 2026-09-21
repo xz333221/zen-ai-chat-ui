@@ -12,6 +12,9 @@
         <button class="demo-btn" @click="toggleToolGroup">
           工具折叠：{{ toolGroupEnabled ? '开' : '关' }}
         </button>
+        <button class="demo-btn" @click="toggleMeta">
+          元信息：{{ metaModeLabel }}
+        </button>
         <button class="demo-btn" @click="clearMessages">清空</button>
         <button class="demo-btn" @click="toggleDebug">
           调试：{{ debugMode ? '开' : '关' }}
@@ -37,6 +40,7 @@
         @stop="onStop"
         :followup="followup"
         :tool-calls-config="toolCallsConfig"
+        :message-meta-config="messageMetaConfig"
         @send="onSend"
         @select="onSelect"
         @retry="onRetry"
@@ -81,6 +85,7 @@ import { ref, computed } from 'vue'
 import {
   ChatContainer,
   useStreaming,
+  resetStreamTiming,
   uid,
   type ChatMessage,
   type ChatAttachment,
@@ -88,7 +93,9 @@ import {
   type ThemeMode,
   type SelectedFile,
   type FollowupConfig,
-  type ToolCallsConfig
+  type ToolCallsConfig,
+  type MessageMetaConfig,
+  type TokenUsage
 } from '../src'
 
 const messages = ref<ChatMessage[]>([])
@@ -129,6 +136,47 @@ const toolCallsConfig = computed<ToolCallsConfig>(() => ({
 }))
 function toggleToolGroup() {
   toolGroupEnabled.value = !toolGroupEnabled.value
+}
+
+// —— 消息元信息：耗时 / 首字延迟 / token —— //
+// 三档循环，顺便把「同排 / 单独一行」两种排布都演示到
+const metaMode = ref<'off' | 'inline' | 'below'>('inline')
+const messageMetaConfig = computed<MessageMetaConfig>(() => ({
+  enable: metaMode.value !== 'off',
+  items: ['duration', 'firstToken', 'tokens'],
+  position: metaMode.value === 'below' ? 'below' : 'inline'
+}))
+const metaModeLabel = computed(
+  () => ({ off: '关', inline: '同排', below: '换行' })[metaMode.value]
+)
+function toggleMeta() {
+  const order: Array<'off' | 'inline' | 'below'> = ['off', 'inline', 'below']
+  metaMode.value = order[(order.indexOf(metaMode.value) + 1) % order.length]
+}
+
+/**
+ * 演示用：按正文长度反推一个「像真的」token 数，让元信息有数可看。
+ *
+ * 真实项目请直接用接口返回的 usage —— 各家字段名不同，组件库不做估算：
+ * 估算出来的数字看着像真的，但会误导用户，比不显示更糟。
+ */
+function mockUsage(msg: ChatMessage): TokenUsage {
+  const prompt = 26
+  // reasoning 在多数厂商的实现里也算进 completion_tokens
+  const completionChars = (msg.reasoning?.length ?? 0) + (msg.content?.length ?? 0)
+  const completion = Math.max(12, Math.round(completionChars / 2.2))
+  return {
+    prompt,
+    completion,
+    total: prompt + completion,
+    reasoning: msg.reasoning ? Math.round(msg.reasoning.length / 2.4) : undefined
+  }
+}
+
+/** 收尾：补上演示用的 token 数再 finish（耗时由 useStreaming 自己算） */
+function finishWithUsage(msg: ChatMessage) {
+  msg.meta = { ...(msg.meta ?? {}), usage: mockUsage(msg) }
+  streaming.finish(msg)
 }
 
 /**
@@ -219,7 +267,7 @@ function onStop() {
 function settle(msg: ChatMessage, e: unknown) {
   if (e instanceof Error && e.message === ABORT_SENTINEL) {
     msg.reasoningStatus = 'done'
-    streaming.finish(msg)
+    finishWithUsage(msg)
     const tail = '\n\n*（已停止生成）*'
     msg.content = msg.content ? msg.content + tail : tail.trim()
   } else {
@@ -269,6 +317,8 @@ function onRetry(msg: ChatMessage) {
   msg.reasoning = ''
   msg.reasoningStatus = undefined
   msg.error = undefined
+  // 计时状态必须一起清掉，否则新一次生成算出来的耗时是从上一次开始算的
+  resetStreamTiming(msg)
   runMockStream(msg, '重新生成')
 }
 
@@ -297,7 +347,7 @@ async function runLongThinkingDemo(msg: ChatMessage) {
       streaming.append(msg, { type: 'content', delta: ch })
       await sleep(12)
     }
-    streaming.finish(msg)
+    finishWithUsage(msg)
   } catch (e) {
     settle(msg, e)
   } finally {
@@ -352,7 +402,7 @@ async function runMockStream(msg: ChatMessage, _userText: string) {
       streaming.append(msg, { type: 'content', delta: ch })
       await sleep(4 + Math.random() * 10)
     }
-    streaming.finish(msg)
+    finishWithUsage(msg)
   } catch (e) {
     settle(msg, e)
   } finally {
@@ -414,7 +464,7 @@ async function runToolCallDemo(msg: ChatMessage) {
       streaming.append(msg, { type: 'content', delta: ch })
       await sleep(8)
     }
-    streaming.finish(msg)
+    finishWithUsage(msg)
   } catch (e) {
     settle(msg, e)
   } finally {
@@ -479,7 +529,7 @@ async function runMultiToolCallDemo(msg: ChatMessage) {
       streaming.append(msg, { type: 'content', delta: ch })
       await sleep(8)
     }
-    streaming.finish(msg)
+    finishWithUsage(msg)
   } catch (e) {
     settle(msg, e)
   } finally {
