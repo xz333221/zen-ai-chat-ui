@@ -5,7 +5,7 @@
 ## 特性
 
 - **流式输出**：逐字渲染 + 光标，支持 `content` / `reasoning` 双通道分片
-- **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠
+- **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
 - **Markdown 渲染**：基于 markdown-it + Shiki，双主题代码高亮、表格、引用、任务列表，代码块带语言标签与一键复制
@@ -85,6 +85,62 @@ async function onSend({ text, files }: { text: string; files: any[] }) {
 
 首个 `content` 到达时，`reasoning` 自动标记为完成。
 
+## 思考过程
+
+assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思考中」区块：流式时自动展开 + 三点动画 + 光标，完成后自动折叠。
+
+模型的思考过程动辄几千字，**默认给正文加了 320px 的高度上限，超出后内部滚动**，避免把气泡撑到几千像素高、把真正的回答挤到屏幕外：
+
+![思考块超出后内部滚动](docs/thinking-scroll.png)
+
+```
+┌─────────────────────────────────────────┐
+│ ◐ 思考中 •••                           │  ← 头部常驻，随时可折叠
+├─────────────────────────────────────────┤
+│ 先看看项目结构……                    ▐   │  ← 正文：超出 320px 后内部滚动
+│ Node v26.9.0，client engines 要求……  ▐   │
+│ ……                                      │
+└─────────────────────────────────────────┘
+```
+
+流式输出时正文会**自动贴底**跟随新内容；用户手动往上滚查看前文后跟随暂停，滚回底部自动恢复。滚动到边界不会把外层消息列表一起带走（`overscroll-behavior: contain`）。
+
+### `ThinkingConfig` 字段
+
+| 字段            | 类型      | 默认值  | 说明 |
+| --------------- | --------- | ------- | ---- |
+| `scrollable`    | `boolean` | `true`  | 正文超出高度上限时是否内部滚动；设 `false` 恢复为全部铺开 |
+| `maxHeight`     | `number`  | `320`   | 正文最大高度（px） |
+| `followStream`  | `boolean` | `true`  | 流式输出时是否自动贴底跟随 |
+| `defaultExpanded` | `boolean` | -     | 初始是否展开；不传则沿用默认（streaming 展开、完成折叠） |
+
+```vue
+<!-- 默认：320px 上限 + 内部滚动 + 流式跟随 -->
+<ChatContainer :messages="messages" @send="onSend" />
+
+<!-- 更长一些，且不要自动跟随（让用户自己滚） -->
+<ChatContainer
+  :messages="messages"
+  :thinking-config="{ maxHeight: 480, followStream: false }"
+  @send="onSend"
+/>
+
+<!-- 恢复旧行为：思考全部铺开 -->
+<ChatContainer
+  :messages="messages"
+  :thinking-config="{ scrollable: false }"
+  @send="onSend"
+/>
+```
+
+也可以单独用 `<ThinkingBlock>`：
+
+```vue
+<ThinkingBlock :content="msg.reasoning" :streaming="true" :config="{ maxHeight: 240 }" />
+```
+
+> 跑 `npm run dev` 后点预设里的「超长思考滚动」可以直接看到效果（含流式贴底跟随）。
+
 ## 组件 API
 
 ### `<ChatContainer>`
@@ -105,6 +161,7 @@ async function onSend({ text, files }: { text: string; files: any[] }) {
 | `uploadConfig`      | `Partial<UploadConfig>`    | `{}`       | 附件上传配置          |
 | `followup`          | `FollowupInput`            | -          | 追问建议（详见下方）  |
 | `toolCallsConfig`   | `ToolCallsConfig`          | -          | 工具调用展示配置（详见下方） |
+| `thinkingConfig`    | `ThinkingConfig`           | -          | 思考块展示配置（详见下方） |
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
 
 | Event              | Payload                                                | 说明             |

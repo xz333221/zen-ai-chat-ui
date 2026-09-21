@@ -60,6 +60,7 @@ export type {
   ToolCall,
   ToolCallStatus,
   ToolCallsConfig,
+  ThinkingConfig,
   MessageActionsConfig,
   PresetQuestion,
   FollowupInput,

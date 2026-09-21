@@ -115,7 +115,8 @@ const presetQuestions: PresetQuestion[] = [
   { id: 'q3', label: '展示 Markdown 渲染', prompt: '展示一下 Markdown 渲染效果' },
   { id: 'q4', label: '深色模式怎么用', prompt: '深色模式如何配置？' },
   { id: 'q5', label: '查询北京天气', prompt: '北京今天天气怎么样？' },
-  { id: 'q6', label: '多工具调用折叠', prompt: '帮我排查一下项目报错' }
+  { id: 'q6', label: '多工具调用折叠', prompt: '帮我排查一下项目报错' },
+  { id: 'q7', label: '超长思考滚动', prompt: '帮我分析一下这段超长思考过程' }
 ]
 
 // —— 工具调用展示配置：演示「多个调用折叠成组，只展示最新一个」 ——
@@ -215,6 +216,8 @@ async function onSend({ text, files }: { text: string; files: SelectedFile[] }) 
     await runToolCallDemo(assistant)
   } else if (text === '帮我排查一下项目报错') {
     await runMultiToolCallDemo(assistant)
+  } else if (text === '帮我分析一下这段超长思考过程') {
+    await runLongThinkingDemo(assistant)
   } else {
     await runMockStream(assistant, text)
   }
@@ -237,6 +240,63 @@ function onRetry(msg: ChatMessage) {
   msg.reasoningStatus = undefined
   msg.error = undefined
   runMockStream(msg, '重新生成')
+}
+
+// —— 演示：超长思考过程（验证正文超高后内部滚动） ——
+async function runLongThinkingDemo(msg: ChatMessage) {
+  busy.value = true
+  try {
+    await sleep(400)
+    msg.status = 'streaming'
+    msg.reasoningStatus = 'streaming'
+    for (const ch of buildLongReasoning()) {
+      streaming.append(msg, { type: 'reasoning', delta: ch })
+      await sleep(3)
+    }
+    msg.reasoningStatus = 'done'
+    await sleep(260)
+
+    const content =
+      '上面这段思考有三千多字，但**卡片高度被 320px 上限截住了**，正文在内部滚动。\n\n' +
+      '- 流式期间会自动贴底跟随\n' +
+      '- 你手动往上滚之后跟随暂停，滚回底部又会恢复\n' +
+      '- 滚动到边界不会把外层消息列表一起带走\n\n' +
+      '如果不想被截断，传 `:thinking-config="{ scrollable: false }"` 即可恢复成全部铺开。'
+    for (const ch of content) {
+      streaming.append(msg, { type: 'content', delta: ch })
+      await sleep(12)
+    }
+    streaming.finish(msg)
+  } catch (e) {
+    streaming.fail(msg, (e as Error).message || '模拟失败')
+  } finally {
+    busy.value = false
+  }
+}
+
+// 故意写长，用来触发思考正文的滚动
+function buildLongReasoning(): string {
+  return [
+    "用户想知道这段思考为什么这么长。先理一下需要交代的点：高度上限、内部滚动、流式跟随、以及怎么关掉。",
+    "我应该先给出一段足够长的思考内容，长到超过 320px 的默认上限，否则滚动效果根本看不出来。",
+    "写多长合适？按 18px 行高、每行约 60 字符估算，320px 大概能放十来行；要让人一眼看出被截住，最好写到四五十行。",
+    "内容本身也得像真的推理过程，不能是纯占位文本，否则看演示的人会以为组件坏了。",
+    "那就照着一次真实的排查过程写：先看项目结构，再看依赖版本，然后逐个确认配置文件，最后给结论。",
+    "第一步，确认 node 和 npm 版本。这个信息决定了后面能不能用某些新语法，以及依赖的 engines 约束满不满足。",
+    "第二步，看 node_modules 是否存在。不存在的话就得先装依赖，那就得多等一会儿，这时最好给个流式提示。",
+    "顺带确认一下 lockfile 的格式，pnpm-lock 还是 package-lock，两种包管理器的行为差异会影响后续命令的选择。",
+    "第三步，检查 .env 这类本地配置。很多构建脚本会读它，缺了就直接报 file not found，而且报错位置往往很隐蔽。",
+    "如果 .env 缺失但没有 .env.example 可以复制，那就得回头问用户要，不能自己瞎编一个，否则跑出来的结果没意义。",
+    "第四步，确认 .gitignore 有没有把 .env 排除掉。这个和第三步是两件事：一个是文件在不在，一个是被不被跟踪。",
+    "第五步，看构建配置里有没有额外的资源声明，比如 extraResources，这类路径是字面匹配的，文件不存在就会抛错。",
+    "第六步，检查代理和镜像设置。在国内的网络环境下，默认 registry 经常超时，但直接换镜像又可能和 lockfile 里的 resolved 地址冲突。",
+    "这里有个细节值得留意：lockfile 里记录的是完整的 tarball 地址，所以只改 registry 未必生效，得看包管理器是否严格遵循 lockfile。",
+    "第七步，确认构建脚本里有没有预设镜像变量。如果脚本自己设置了镜像地址，那说明作者本来就考虑了网络问题，先按原样跑。",
+    "最后，把所有不确定项列出来，按「会直接导致失败」和「只是可能变慢」分两类，先解决前一类。",
+    "结论：先装依赖，再补 .env，然后跑一次构建看真实报错。不要在没有任何报错信息的情况下凭猜测改配置。",
+    "对了，还得提醒一句：如果构建耗时很长，记得把命令超时时间调大，否则会被中途掐断，看到的日志也是不完整的。",
+    "思考到这里应该够长了。接下来把结论整理成正文回答，注意别再重复这一大段推理。"
+  ].join('\n\n')
 }
 
 // —— mock 流式：先输出 reasoning，再输出 content ——

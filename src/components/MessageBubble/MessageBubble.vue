@@ -59,6 +59,7 @@
           v-if="message.role === 'assistant' && effectiveReasoning"
           :content="effectiveReasoning"
           :streaming="message.reasoningStatus === 'streaming'"
+          :config="thinkingConfig"
         />
 
         <!-- 工具调用（仅 assistant）：多个调用默认折叠，只展示最新一个 -->
@@ -117,7 +118,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ChatMessage, ToolCallsConfig, MessageActionsConfig } from '@/types'
+import type { ChatMessage, ToolCallsConfig, ThinkingConfig, MessageActionsConfig } from '@/types'
 import { formatFileSize, isImageType } from '@/utils/format'
 import MarkdownRenderer from '@/components/MarkdownRenderer/MarkdownRenderer.vue'
 import ThinkingBlock from '@/components/ThinkingBlock/ThinkingBlock.vue'
@@ -134,6 +135,8 @@ const props = withDefaults(
     showAvatar?: boolean
     /** 工具调用展示配置（分组折叠与否） */
     toolCallsConfig?: ToolCallsConfig
+    /** 思考块展示配置（高度上限 / 内部滚动 / 流式跟随） */
+    thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
     actionsConfig?: MessageActionsConfig
     /** 是否是最后一条 assistant 消息（决定「重新生成」是否出现） */
@@ -145,6 +148,7 @@ const props = withDefaults(
     userAvatar: '',
     showAvatar: true,
     toolCallsConfig: undefined,
+    thinkingConfig: undefined,
     actionsConfig: undefined,
     isLastAssistant: false
   }

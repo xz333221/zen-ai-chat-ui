@@ -24,6 +24,7 @@
         :show-avatar="showAvatar"
         :followup="followup"
         :tool-calls-config="toolCallsConfig"
+        :thinking-config="thinkingConfig"
         :actions-config="actionsConfig"
         @retry="(m) => $emit('retry', m)"
         @followup-select="onFollowupSelect"
@@ -51,6 +52,7 @@ import type {
   SelectedFile,
   FollowupInput,
   ToolCallsConfig,
+  ThinkingConfig,
   MessageActionsConfig
 } from '@/types'
 import MessageList from '@/components/MessageList/MessageList.vue'
@@ -96,6 +98,12 @@ const props = withDefaults(
      */
     toolCallsConfig?: ToolCallsConfig
     /**
+     * 思考块展示配置。
+     * 默认给思考正文加 320px 高度上限、超出后内部滚动（长思考不会把气泡撑得极高），
+     * 并在流式输出时自动贴底跟随。传 `{ scrollable: false }` 可恢复为全部铺开。
+     */
+    thinkingConfig?: ThinkingConfig
+    /**
      * 气泡下方操作栏配置。
      * 默认 user / assistant 气泡下方都有「复制」，最后一条 assistant 额外有「重新生成」。
      * 传 `{ enable: false }` 可整体关闭。
@@ -116,6 +124,7 @@ const props = withDefaults(
     uploadConfig: () => ({}),
     followup: undefined,
     toolCallsConfig: undefined,
+    thinkingConfig: undefined,
     actionsConfig: undefined
   }
 )

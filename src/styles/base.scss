@@ -3,6 +3,11 @@
 // 所有组件根元素都带 .acu- 前缀，避免污染宿主
 // ============================================================
 
+// vite.config.ts 的 additionalData 只会注入到 Vite 直接处理的入口文件，
+// 本文件是被 index.scss 用 @use 拉进来的，拿不到那份注入，必须自己引一次，
+// 否则这里用不了 acu-* mixin（会报 Undefined mixin）。
+@use './tokens' as *;
+
 // 盒模型重置（仅作用于组件根元素及其后代，作用域隔离）
 .acu-root,
 .acu-root *,
@@ -169,6 +174,17 @@
   color: var(--acu-thinking-text);
   font-size: var(--acu-font-size-sm);
   line-height: 1.7;
+}
+
+// 思考正文超高后内部滚动。
+// 模型的思考过程动辄几千字，全量铺开会把气泡撑到几千像素高，
+// 正文被挤到屏幕外，用户得滚很久才看得到真正的回答。
+.acu-thinking-body.is-scrollable {
+  max-height: var(--acu-thinking-max-height, 320px);
+  overflow-y: auto;
+  // 滚到底后不要继续把外层消息列表带着滚（滚动链）
+  overscroll-behavior: contain;
+  @include acu-scrollbar(6px);
 }
 
 // markdown 里的 think 块：默认展开，无 chevron

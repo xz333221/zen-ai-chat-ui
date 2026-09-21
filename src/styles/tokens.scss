@@ -5,10 +5,18 @@
 // ============================================================
 
 // 美化滚动条
+//
+// ⚠️ 这里有个容易踩的互斥关系：Chromium 只要看到 scrollbar-width 或
+// scrollbar-color 拿到**非 auto** 值，就会整段忽略 ::-webkit-scrollbar，
+// 回落到带上下箭头的原生滚动条 —— $size 参数直接失效，看起来像"mixin 没生效"。
+// 更坑的是 scrollbar-color 是**继承属性**，祖先设过一次就会一路传下来。
+//
+// 所以两条路必须分开走：
+//   Chromium / Safari → 只用 ::-webkit-scrollbar（能精确控制宽度与配色）
+//   Firefox          → 没有 webkit 伪元素，只能用标准属性
+// 用 @supports selector() 探测分流。Chromium 对 selector(::-webkit-scrollbar)
+// 返回 true，因此下面那个 not 块在 Chromium 里不会进入。
 @mixin acu-scrollbar($size: 6px) {
-  scrollbar-width: thin;
-  scrollbar-color: var(--acu-border-strong) transparent;
-
   &::-webkit-scrollbar {
     width: $size;
     height: $size;
@@ -22,6 +30,11 @@
     &:hover {
       background-color: var(--acu-text-muted);
     }
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--acu-border-strong) transparent;
   }
 }
 

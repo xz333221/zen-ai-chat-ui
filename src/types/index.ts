@@ -73,6 +73,35 @@ export interface ToolCallsConfig {
 }
 
 /**
+ * 思考（reasoning）块展示配置。
+ *
+ * 模型的思考过程有时极长（几千字），全量铺开会把气泡撑得非常高、
+ * 把正文挤到屏幕外。默认给正文加高度上限，超出后内部滚动。
+ */
+export interface ThinkingConfig {
+  /**
+   * 正文超出高度上限时是否内部滚动
+   * @default true
+   */
+  scrollable?: boolean
+  /**
+   * 正文最大高度（px）。仅在 scrollable 为 true 时生效
+   * @default 320
+   */
+  maxHeight?: number
+  /**
+   * 流式输出过程中是否自动贴底跟随新内容。
+   * 用户手动向上滚动后会暂停跟随，滚回底部则恢复
+   * @default true
+   */
+  followStream?: boolean
+  /**
+   * 初始是否展开。不传则沿用默认行为（streaming 展开、完成折叠）
+   */
+  defaultExpanded?: boolean
+}
+
+/**
  * 消息操作栏配置（气泡下方的复制 / 重新生成按钮）。
  */
 export interface MessageActionsConfig {

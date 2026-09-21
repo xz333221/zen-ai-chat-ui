@@ -15,6 +15,7 @@
           :user-avatar="userAvatar"
           :show-avatar="showAvatar"
           :tool-calls-config="toolCallsConfig"
+          :thinking-config="thinkingConfig"
           :actions-config="actionsConfig"
           :is-last-assistant="msg.id === lastAssistantId"
           @retry="(m) => $emit('retry', m)"
@@ -53,6 +54,7 @@ import type {
   PresetQuestion,
   FollowupConfig,
   ToolCallsConfig,
+  ThinkingConfig,
   MessageActionsConfig
 } from '@/types'
 import MessageBubble from '@/components/MessageBubble/MessageBubble.vue'
@@ -74,6 +76,8 @@ const props = withDefaults(
     followup?: FollowupConfig | PresetQuestion[]
     /** 工具调用展示配置（默认多个调用折叠成组、只展示最新一个） */
     toolCallsConfig?: ToolCallsConfig
+    /** 思考块展示配置（默认正文超高后内部滚动） */
+    thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
     actionsConfig?: MessageActionsConfig
   }>(),
@@ -84,6 +88,7 @@ const props = withDefaults(
     showAvatar: true,
     followup: undefined,
     toolCallsConfig: undefined,
+    thinkingConfig: undefined,
     actionsConfig: undefined
   }
 )

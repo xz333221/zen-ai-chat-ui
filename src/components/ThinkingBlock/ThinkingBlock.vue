@@ -4,6 +4,7 @@
     - streaming：默认展开，标题显示"思考中"+三点动画，正文带流式光标
     - done：可折叠，标题显示"思考"，默认折叠
     - 样式区别于正式回答：弱化配色、左侧细线、更小字号
+    - 正文超出高度上限时内部滚动（见 ThinkingConfig），避免长思考把气泡撑得过高
   -->
   <div class="acu-thinking" :class="{ 'is-streaming': streaming }">
     <button
@@ -60,7 +61,14 @@
     </button>
 
     <transition name="acu-collapse">
-      <div v-show="expanded" class="acu-thinking-body">
+      <div
+        v-show="expanded"
+        ref="bodyRef"
+        class="acu-thinking-body"
+        :class="{ 'is-scrollable': scrollable }"
+        :style="bodyStyle"
+        @scroll.passive="onScroll"
+      >
         <MarkdownRenderer :source="content" />
         <span v-if="streaming && content" class="acu-cursor" aria-hidden="true"></span>
       </div>
@@ -69,7 +77,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import type { ThinkingConfig } from '@/types'
 import MarkdownRenderer from '@/components/MarkdownRenderer/MarkdownRenderer.vue'
 
 const props = withDefaults(
@@ -80,28 +89,87 @@ const props = withDefaults(
     streaming?: boolean
     /** 初始是否展开 */
     defaultExpanded?: boolean
+    /** 展示配置（高度上限 / 滚动 / 流式跟随） */
+    config?: ThinkingConfig
   }>(),
   {
     content: '',
     streaming: false,
-    defaultExpanded: undefined
+    defaultExpanded: undefined,
+    config: undefined
   }
+)
+
+const scrollable = computed(() => props.config?.scrollable !== false)
+const followStream = computed(() => props.config?.followStream !== false)
+
+// 高度上限走 CSS 变量，这样既能被 base.scss 的共享样式消费，
+// 又不用为每个实例生成一条独立规则
+const bodyStyle = computed(() =>
+  props.config?.maxHeight
+    ? ({ '--acu-thinking-max-height': `${props.config.maxHeight}px` } as Record<string, string>)
+    : undefined
 )
 
 // streaming 时默认展开；done 时默认折叠（除非显式指定）
 const expanded = ref(
-  props.defaultExpanded !== undefined
-    ? props.defaultExpanded
-    : props.streaming
+  props.defaultExpanded ?? props.config?.defaultExpanded ?? props.streaming
 )
 
-// streaming 切换：开始流式自动展开
+const bodyRef = ref<HTMLElement | null>(null)
+
+/** 是否还贴着底部。用户手动上滚后置 false，滚回底部自动恢复 */
+const stickToBottom = ref(true)
+
+/** 判定"贴底"的容差：留点余量，避免亚像素误差让跟随反复中断 */
+const STICK_TOLERANCE = 24
+
+function onScroll() {
+  const el = bodyRef.value
+  if (!el) return
+  stickToBottom.value =
+    el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_TOLERANCE
+}
+
+/**
+ * 把滚动位置推到最底部。
+ * 只在「允许滚动 + 开启跟随 + 当前贴底」三者同时成立时才动手——
+ * 用户主动上滚查看前文时不能把他拽回底部。
+ */
+async function scrollToBottom() {
+  if (!scrollable.value || !followStream.value || !stickToBottom.value) return
+  await nextTick()
+  const el = bodyRef.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+
+// streaming 切换：开始流式自动展开并恢复贴底
 watch(
   () => props.streaming,
   (val) => {
-    if (val) expanded.value = true
+    if (val) {
+      expanded.value = true
+      stickToBottom.value = true
+    }
   }
 )
+
+// 内容增长时跟随（仅流式中；已完成的内容不再动滚动条）
+watch(
+  () => props.content,
+  () => {
+    if (props.streaming) scrollToBottom()
+  }
+)
+
+// 展开瞬间也要贴底：折叠时容器 display:none，clientHeight 为 0，滚动状态是失效的
+watch(expanded, (val) => {
+  if (val) scrollToBottom()
+})
+
+onMounted(() => {
+  if (props.streaming) scrollToBottom()
+})
 
 function toggle() {
   expanded.value = !expanded.value
