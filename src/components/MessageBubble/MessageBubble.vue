@@ -4,7 +4,11 @@
     - user：右对齐，主色气泡，头像在右
     - assistant：左对齐，浅色气泡 + 头像 + 名称；含思考块、Markdown 正文、流式光标、附件
   -->
-  <div class="acu-bubble-row" :class="`is-${message.role}`" :data-msg-id="message.id">
+  <div
+    class="acu-bubble-row"
+    :class="[`is-${message.role}`, { 'is-meta-hover': metaHoverHidden }]"
+    :data-msg-id="message.id"
+  >
     <!-- ===== 左侧头像（仅 assistant） ===== -->
     <div v-if="message.role === 'assistant' && showAvatar" class="acu-avatar acu-avatar--left">
       <img v-if="resolvedAssistantAvatar" :src="resolvedAssistantAvatar" alt="" />
@@ -246,6 +250,17 @@ const showMeta = computed(() => {
 const metaPosition = computed(() => props.messageMetaConfig?.position ?? 'inline')
 const showFooterRow = computed(() => showActions.value || showMeta.value)
 
+/**
+ * 元信息是否走「悬停才淡入」。
+ *
+ * 默认 true（与操作栏一致）：两者在同一行，一起出现/一起消失比
+ * 「一个常驻、一个浮现」整齐。想常显传 `visibility: 'always'`。
+ * 触摸设备没有 hover 动作，CSS 那边会退化成常显，所以这里不用额外判断。
+ */
+const metaHoverHidden = computed(
+  () => showMeta.value && (props.messageMetaConfig?.visibility ?? 'hover') === 'hover'
+)
+
 // —— 附件图片预览 —— //
 
 const previewVisible = ref(false)
@@ -306,18 +321,24 @@ const showRetryAction = computed(() => {
   }
 }
 
-// —— 操作栏的显隐 —— //
-// 支持 hover 的设备：默认隐藏，悬停整行 / 键盘聚焦时才淡入（不占额外空间，无需布局抖动处理）
+// —— 操作栏 / 元信息的显隐 —— //
+// 支持 hover 的设备：默认隐藏，悬停整行 / 键盘聚焦时才淡入
+// （不占额外空间，无需布局抖动处理——只是 opacity，盒子一直在）
 // 触摸设备（无 hover）走 @media 之外的分支：始终可见，否则永远点不到。
-// 注意只作用于操作栏——元信息是信息不是操作，任何时候都不该藏。
+//
+// 只作用于「操作栏」与「开启了 visibility:'hover' 的元信息」；
+// 元信息传 'always' 时行上没有 is-meta-hover 类，选择器命中不到，天然常显。
 @media (hover: hover) {
-  .acu-bubble-row :deep(.acu-message-actions) {
+  .acu-bubble-row :deep(.acu-message-actions),
+  .acu-bubble-row.is-meta-hover :deep(.acu-message-meta) {
     opacity: 0;
     transition: opacity var(--acu-duration-fast) var(--acu-easing);
   }
 
   .acu-bubble-row:hover :deep(.acu-message-actions),
-  .acu-bubble-row:focus-within :deep(.acu-message-actions) {
+  .acu-bubble-row:focus-within :deep(.acu-message-actions),
+  .acu-bubble-row.is-meta-hover:hover :deep(.acu-message-meta),
+  .acu-bubble-row.is-meta-hover:focus-within :deep(.acu-message-meta) {
     opacity: 1;
   }
 }

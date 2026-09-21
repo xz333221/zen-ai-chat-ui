@@ -9,7 +9,7 @@
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
-- **运行元信息**：可选在气泡下方展示回答耗时、首字延迟、token 用量（`1.2s · 510ms · ↑26 ↓571`），耗时由 `useStreaming` 自动计时
+- **运行元信息**：可选在气泡下方展示回答耗时、首字延迟、token 用量（`1.2s · 510ms · ↑26 ↓571`），耗时由 `useStreaming` 自动计时；与操作栏同步悬停显示（可设常显）
 - **Markdown 渲染**：基于 markdown-it + Shiki，双主题代码高亮、表格、引用、任务列表，代码块带语言标签与一键复制
 - **附件上传**：点击 / 拖拽，图片缩略图 + 文件卡片，可移除；图片点击可放大预览（灯箱：左右切换 / 键盘导航 / 点背景关闭）
 - **消息侧边条**：消息列表左边缘一列短横条，**一条消息一根**，条宽反映内容长度；静止时低透明不打扰，悬停才显形，可浮层预览、点击跳转
@@ -539,6 +539,24 @@ streaming.finish(assistant)
 | `items` | `MessageMetaItem[]` | `['duration', 'tokens']` | 展示哪些项，按数组顺序渲染。可选 `duration`（耗时）/ `firstToken`（首字延迟）/ `tokens` / `time`（发送时间） |
 | `position` | `'inline' \| 'below'` | `'inline'` | `inline` 与操作栏同一行、`below` 单独占一行 |
 | `showForUser` | `boolean` | `false` | 是否也给 user 消息显示（user 侧通常只有 `time` 有意义） |
+| `visibility` | `'always' \| 'hover'` | `'hover'` | 显隐时机。`hover` 与操作栏一致：悬停该条消息 / 键盘聚焦才淡入；`always` 常显 |
+
+> **显隐规则**：元信息和操作栏在同一行，默认都走「悬停才淡入」，**一起出现、一起消失**——避免出现「一个常驻、一个浮现」的参差感。同样是 `opacity` 切换，盒子一直在，不产生布局抖动。
+
+![元信息默认悬停显示：上为不悬停（两者都隐藏），下为悬停（同时淡入）](docs/message-meta-hover.png)
+
+> 触摸设备（`@media (hover: none)`）上 `'hover'` 会自动退化为常显：没有悬停这个动作，藏起来等于用户永远看不到。这一条对操作栏和元信息同样适用。
+>
+> 不想让它藏，传 `visibility: 'always'`：
+
+```vue
+<!-- 元信息常显（和旧版行为一致） -->
+<ChatContainer
+  :messages="messages"
+  :message-meta-config="{ enable: true, visibility: 'always' }"
+  @send="onSend"
+/>
+```
 
 ### 改展示内容
 
@@ -611,6 +629,8 @@ function onRetry(msg: ChatMessage) {
 ```vue
 <MessageMeta :message="msg" :config="{ items: ['duration', 'tokens'] }" />
 ```
+
+> `MessageMeta` 自身**不带**悬停隐藏逻辑（和 `MessageActions` 一样，那由父容器决定），独立使用时常显。上面说的「默认悬停」是 `MessageBubble` 配合 `visibility: 'hover'` 做出来的效果。
 
 配套的格式化函数也导出了，方便你在别处复用同一套口径：`formatDuration(1234) === '1.2s'`、`formatTokens(12345) === '1.2万'`、`formatClock(Date.now()) === '14:32'`。
 

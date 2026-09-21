@@ -239,6 +239,18 @@ export interface MessageMetaConfig {
    * @default false
    */
   showForUser?: boolean
+  /**
+   * 元信息的显隐时机。
+   *
+   * - `'hover'`：与操作栏一致，鼠标悬停该条消息 / 键盘聚焦时才淡入。
+   *   默认值——元信息和操作栏在同一行，两者一起出现比「一个常驻一个浮现」整齐
+   * - `'always'`：常显。适合把耗时 / token 当成需要一直盯着的指标的场景
+   *
+   * 注意：触摸设备（`@media (hover: none)`）上 `'hover'` 会退化为常显——
+   * 没有 hover 就没有「悬停」这个动作，藏起来等于用户永远看不到。
+   * @default 'hover'
+   */
+  visibility?: 'always' | 'hover'
 }
 
 /**
