@@ -472,7 +472,7 @@ const SCHEMA: ConfigGroup[] = [
   {
     title: '侧边消息条',
     prop: 'messageRailConfig',
-    desc: '消息列表左边缘一列短横条，一条消息一根，条宽反映内容长度。',
+    desc: '消息列表左边缘一列短横条，一轮问答一根；悬停浮出「提问 + 回答摘要」，点击跳转。',
     fields: [
       { key: 'railEnable', label: '启用侧边条', field: 'enable', type: 'bool', hint: '默认 false' },
       {
@@ -481,8 +481,8 @@ const SCHEMA: ConfigGroup[] = [
         field: 'widthBy',
         type: 'enum',
         options: [
-          { value: 'length', label: '按内容长度（对数）' },
-          { value: 'role', label: '按角色固定' }
+          { value: 'length', label: '按本轮长度（对数）' },
+          { value: 'even', label: '等宽' }
         ],
         hint: "默认 'length'"
       },
@@ -923,7 +923,7 @@ function onSelect(q: PresetQuestion) {
 
 /**
  * 演示用：一次性铺出一段多轮对话，好让左侧那列消息条有内容可看。
- * 问答长度刻意长短不一，用来对比「按长度取宽」与「按角色取宽」两种策略。
+ * 问答长度刻意长短不一，用来对比「按长度取宽」与「等宽」两种策略。
  */
 function seedMultiTurnDemo() {
   const turns: Array<[string, string]> = [
