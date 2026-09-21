@@ -45,6 +45,7 @@
         :tool-calls-config="toolCallsConfig"
         :message-meta-config="messageMetaConfig"
         :message-rail-config="messageRailConfig"
+        :max-width="demoMaxWidth"
         @send="onSend"
         @select="onSelect"
         @retry="onRetry"
@@ -107,6 +108,17 @@ const messages = ref<ChatMessage[]>([])
 const streaming = useStreaming()
 const busy = ref(false)
 const theme = ref<ThemeMode | 'auto'>('light')
+
+// 内容列最大宽度。演示页的 .demo-app 只有 920px，看不出「去掉上限」的差别，
+// 所以支持 ?maxWidth=900 直接试；不传则用组件默认的 100%。
+// 纯数字转成 number 走 prop 的「数字补 px」分支，其余（'60ch' 等）原样透传。
+const rawMaxWidth = new URLSearchParams(location.search).get('maxWidth')
+const demoMaxWidth: string | number =
+  rawMaxWidth == null || rawMaxWidth === ''
+    ? '100%'
+    : /^\d+(\.\d+)?$/.test(rawMaxWidth)
+      ? Number(rawMaxWidth)
+      : rawMaxWidth
 
 // —— 调试模式：开启后展示「查看数据结构」按钮 ——
 const debugMode = ref(false)

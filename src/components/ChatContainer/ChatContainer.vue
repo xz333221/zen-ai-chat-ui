@@ -5,13 +5,18 @@
     - 消息为空时展示开场白 + 预设问题
     - 透传 send / retry / select 事件
   -->
-  <div class="acu-root acu-chat" :data-theme="resolvedTheme">
+  <div
+    class="acu-root acu-chat"
+    :data-theme="resolvedTheme"
+    :style="{ '--acu-max-width': cssMaxWidth }"
+  >
     <div class="acu-chat-body">
       <WelcomeScreen
         v-if="!messages.length"
         :title="welcomeTitle"
         :description="welcomeDescription"
         :questions="presetQuestions"
+        :max-width="cssMaxWidth"
         @select="onSelectPreset"
       />
       <MessageList
@@ -135,6 +140,17 @@ const props = withDefaults(
      * 用来看清对话结构并点击跳转。
      */
     messageRailConfig?: MessageRailConfig
+    /**
+     * 内容列的最大宽度。数字按 px 处理，字符串原样使用
+     * （`'900px'` / `'60ch'` / `'100%'`）。
+     *
+     * 一处管三处：开场白内容区、消息列表、输入框——它们在视觉上是同一列，
+     * 各自为政会出现「开场白 640 / 消息 768 / 输入框 768」这种对不齐。
+     *
+     * 默认 `'100%'`：跟着容器走，不再有内置上限。
+     * @default '100%'
+     */
+    maxWidth?: string | number
   }>(),
   {
     presetQuestions: () => [],
@@ -154,8 +170,14 @@ const props = withDefaults(
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,
-    messageRailConfig: undefined
+    messageRailConfig: undefined,
+    maxWidth: '100%'
   }
+)
+
+/** 数字补 px，字符串原样——`:max-width="900"` 与 `max-width="900px"` 等价 */
+const cssMaxWidth = computed(() =>
+  typeof props.maxWidth === 'number' ? `${props.maxWidth}px` : props.maxWidth
 )
 
 const emit = defineEmits<{

@@ -14,6 +14,7 @@
 - **附件上传**：点击 / 拖拽，图片缩略图 + 文件卡片，可移除；图片点击可放大预览（灯箱：左右切换 / 键盘导航 / 点背景关闭）
 - **消息侧边条**：消息列表左边缘一列短横条，**一条消息一根**，条宽反映内容长度；静止时低透明不打扰，悬停才显形，可浮层预览、点击跳转
 - **开场白 + 预设问题**：首屏欢迎语 + 可点击的话题卡片
+- **内容列宽度可配**：开场白、消息列表、输入框共享同一个 `maxWidth`（默认 `100%` 跟随容器），不会再出现「开场白 640 / 消息 768」那种对不齐
 - **双主题**：浅色 / 深色 / 跟随系统，通过 CSS 变量驱动，可深度定制
 - **样式自洽**：所有组件带 `acu-` 前缀，CSS 变量作用域隔离，不污染宿主
 
@@ -254,6 +255,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
 | `messageMetaConfig` | `MessageMetaConfig`        | -          | 耗时 / token 元信息行配置（详见下方） |
 | `messageRailConfig` | `MessageRailConfig`        | -          | 侧边消息条配置（详见下方） |
+| `maxWidth`          | `string \| number`         | `'100%'`   | 内容列最大宽度，一处管开场白 / 消息列表 / 输入框（详见下方） |
 
 | Event              | Payload                                                | 说明             |
 | ------------------ | ------------------------------------------------------ | ---------------- |
@@ -266,6 +268,21 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 ### 其他可独立使用的组件
 
 `MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
+
+### 内容列宽度（`maxWidth`）
+
+开场白的内容区、消息列表、输入框在视觉上是**同一列**，三者必须共用同一个上限。通过 `ChatContainer` 的 `maxWidth` 一处配置：
+
+```vue
+<ChatContainer :max-width="900" :messages="messages" />   <!-- 数字按 px -->
+<ChatContainer max-width="60ch" :messages="messages" />   <!-- 字符串原样 -->
+<ChatContainer :messages="messages" />                     <!-- 默认 '100%'，跟随容器 -->
+```
+
+- **默认 `'100%'`**：不再有内置上限，容器多宽内容就多宽。窄容器（移动端）无差别；大屏下铺满，不会缩在中间一小块、两侧大片留白。
+- **数字**按 px 处理（`:max-width="900"` 与 `max-width="900px"` 等价）；字符串原样透传，`'60ch'`、`'72rem'` 也能用。
+- 实现上是根节点注入一个 `--acu-max-width` CSS 变量，`WelcomeScreen` / `MessageList` / `ChatInput` 同时消费它。视觉上确实是同一列，就不会再出现列宽打架。
+- 注意开场白外层 `.acu-welcome` 自带左右 padding，所以 `100%` 下开场白内容会比消息列表窄两个 padding（这是既有的内缩留白，不是上限）；设成具体值时三列严格等宽。
 
 ## 附件与图片预览
 

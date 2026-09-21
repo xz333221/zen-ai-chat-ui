@@ -4,7 +4,7 @@
     无消息时居中展示，点击预设问题触发发送。
   -->
   <div class="acu-welcome">
-    <div class="acu-welcome-inner">
+    <div class="acu-welcome-inner" :style="{ maxWidth: innerMaxWidth }">
       <div class="acu-welcome-logo">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z" />
@@ -38,19 +38,35 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { PresetQuestion } from '@/types'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     title?: string
     description?: string
     questions?: PresetQuestion[]
+    /**
+     * 内容区最大宽度。数字按 px 处理，字符串原样使用（`'900px'` / `'60ch'` / `'100%'`）。
+     *
+     * 默认 `'100%'`——跟着容器走。窄容器（如移动端）看不出区别，
+     * 但大屏下如果卡在 640px，开场白会缩在中间一小块、两侧大片留白，
+     * 和同样撑满的消息列表/输入框对不齐。
+     * @default '100%'
+     */
+    maxWidth?: string | number
   }>(),
   {
     title: '你好，有什么可以帮你？',
     description: '试着问我任何问题，或选择下方的话题开始对话。',
-    questions: () => []
+    questions: () => [],
+    maxWidth: '100%'
   }
+)
+
+/** 数字补 px，字符串原样——让 `:max-width="900"` 和 `max-width="900px"` 都成立 */
+const innerMaxWidth = computed(() =>
+  typeof props.maxWidth === 'number' ? `${props.maxWidth}px` : props.maxWidth
 )
 
 defineEmits<{
@@ -70,7 +86,8 @@ defineEmits<{
 
 .acu-welcome-inner {
   width: 100%;
-  max-width: 640px;
+  // max-width 由 maxWidth prop 通过 inline style 提供（默认 100%），
+  // 写死在这里会盖不住 inline 之前的默认值——统一交给 prop 一处管理
   text-align: center;
   display: flex;
   flex-direction: column;
