@@ -6,46 +6,119 @@
         <span class="demo-title">ai-chat-ui · 组件演示</span>
       </div>
       <div class="demo-actions">
-        <button class="demo-btn" @click="toggleFollowup">
-          追问：{{ followupModeLabel }}
+        <button
+          class="demo-btn"
+          :class="{ 'demo-btn--on': showConfig }"
+          @click="showConfig = !showConfig"
+        >
+          全部配置（{{ TOTAL_FIELDS }} 项）{{ showConfig ? '▴' : '▾' }}
         </button>
-        <button class="demo-btn" @click="toggleToolGroup">
-          工具折叠：{{ toolGroupEnabled ? '开' : '关' }}
-        </button>
-        <button class="demo-btn" @click="toggleMeta">
-          元信息：{{ metaModeLabel }}
-        </button>
-        <button class="demo-btn" @click="toggleRail">
-          侧边条：{{ railModeLabel }}
-        </button>
-        <button class="demo-btn" @click="clearMessages">清空</button>
-        <button class="demo-btn" @click="toggleDebug">
-          调试：{{ debugMode ? '开' : '关' }}
-        </button>
-        <button class="demo-btn demo-btn--primary" @click="toggleTheme">
-          主题：{{ theme }}
-        </button>
+        <button class="demo-btn" @click="toggleTheme">主题：{{ themeLabel }}</button>
+        <button class="demo-btn" @click="clearMessages">清空对话</button>
+        <button class="demo-btn" @click="resetConfig">重置配置</button>
       </div>
     </header>
+
+    <!--
+      全量配置面板：所有对外可配置项都列在这里，按 prop 分组。
+      由 SCHEMA 驱动渲染（见 script），加字段只需往 SCHEMA 里补一行，
+      面板、计数、重置会一起跟上，不会出现「文档里有、演示里没有」。
+    -->
+    <section v-if="showConfig" class="demo-config">
+      <div class="demo-config-grid">
+        <div v-for="g in SCHEMA" :key="g.title" class="demo-config-group">
+          <div class="demo-config-group-head">
+            <span class="demo-config-group-title">{{ g.title }}</span>
+            <code class="demo-config-group-prop">{{ g.prop }}</code>
+          </div>
+          <p v-if="g.desc" class="demo-config-group-desc">{{ g.desc }}</p>
+
+          <div v-for="f in g.fields" :key="f.key" class="demo-config-row" :data-cfg="f.key">
+            <div class="demo-config-top">
+              <span class="demo-config-label">{{ f.label }}</span>
+
+              <span class="demo-config-ctrl">
+                <input
+                  v-if="f.type === 'bool'"
+                  v-model="cfg[f.key]"
+                  type="checkbox"
+                  class="demo-config-check"
+                />
+
+                <select v-else-if="f.type === 'enum'" v-model="cfg[f.key]" class="demo-config-select">
+                  <option v-for="o in f.options" :key="o.value" :value="o.value">
+                    {{ o.label }}
+                  </option>
+                </select>
+
+                <input
+                  v-else-if="f.type === 'number'"
+                  v-model.number="cfg[f.key]"
+                  type="number"
+                  class="demo-config-num"
+                  :min="f.min"
+                  :max="f.max"
+                  :step="f.step ?? 1"
+                />
+
+                <span v-else-if="f.type === 'multi'" class="demo-config-multi">
+                  <label v-for="o in f.options" :key="o.value" class="demo-config-multi-item">
+                    <input
+                      type="checkbox"
+                      :checked="cfg[f.key].includes(o.value)"
+                      @change="toggleMulti(f.key, o.value)"
+                    />
+                    {{ o.label }}
+                  </label>
+                </span>
+
+                <template v-else>
+                  <input
+                    v-model="cfg[f.key]"
+                    type="text"
+                    class="demo-config-text"
+                    :list="f.list ? `cfg-${f.key}` : undefined"
+                    :placeholder="f.placeholder"
+                  />
+                  <datalist v-if="f.list" :id="`cfg-${f.key}`">
+                    <option v-for="v in f.list" :key="v" :value="v" />
+                  </datalist>
+                </template>
+              </span>
+            </div>
+
+            <div v-if="f.field || f.hint" class="demo-config-sub">
+              <code v-if="f.field" class="demo-config-field">{{ f.field }}</code>
+              <span v-if="f.hint" class="demo-config-hint">{{ f.hint }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <main class="demo-main">
       <ChatContainer
         :messages="messages"
         :preset-questions="presetQuestions"
-        welcome-title="你好，我是 AI 助手"
-        welcome-description="这是一个大模型对话 UI 组件库的演示。试试下面的预设问题，或直接输入消息。"
-        assistant-name="AI 助手"
-        :theme="theme"
-        :disabled="busy"
-        :generating="busy"
-        :placeholder="busy ? '正在生成中…右侧按钮可停止' : '输入消息，Enter 发送，Shift+Enter 换行'"
-        :upload-config="{ enabled: true, multiple: true }"
-        @stop="onStop"
+        :welcome-title="cfg.welcomeTitle"
+        :welcome-description="cfg.welcomeDescription"
+        :assistant-name="cfg.assistantName"
+        :assistant-avatar="resolveAvatar(cfg.assistantAvatar)"
+        :user-avatar="resolveAvatar(cfg.userAvatar)"
+        :show-avatar="cfg.showAvatar"
+        :theme="cfg.theme"
+        :placeholder="inputPlaceholder"
+        :disabled="busy || cfg.forceDisabled"
+        :generating="busy || cfg.forceGenerating"
+        :upload-config="uploadConfig"
         :followup="followup"
         :tool-calls-config="toolCallsConfig"
+        :thinking-config="thinkingConfig"
+        :actions-config="actionsConfig"
         :message-meta-config="messageMetaConfig"
         :message-rail-config="messageRailConfig"
         :max-width="demoMaxWidth"
+        @stop="onStop"
         @send="onSend"
         @select="onSelect"
         @retry="onRetry"
@@ -55,7 +128,7 @@
 
     <!-- 调试浮动按钮（仅调试模式开启时显示） -->
     <button
-      v-if="debugMode"
+      v-if="cfg.debug"
       type="button"
       class="demo-debug-fab"
       @click="showDebugModal = true"
@@ -86,12 +159,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import {
   ChatContainer,
   useStreaming,
   resetStreamTiming,
   uid,
+  AI_AVATAR_PRESETS,
+  resolveAvatar,
   type ChatMessage,
   type ChatAttachment,
   type PresetQuestion,
@@ -99,35 +174,509 @@ import {
   type SelectedFile,
   type FollowupConfig,
   type ToolCallsConfig,
+  type ThinkingConfig,
+  type MessageActionsConfig,
   type MessageMetaConfig,
+  type MessageMetaItem,
   type MessageRailConfig,
+  type UploadConfig,
   type TokenUsage
 } from '../src'
 
 const messages = ref<ChatMessage[]>([])
 const streaming = useStreaming()
 const busy = ref(false)
-const theme = ref<ThemeMode | 'auto'>('light')
 
-// 内容列最大宽度。演示页的 .demo-app 只有 920px，看不出「去掉上限」的差别，
-// 所以支持 ?maxWidth=900 直接试；不传则用组件默认的 100%。
-// 纯数字转成 number 走 prop 的「数字补 px」分支，其余（'60ch' 等）原样透传。
-const rawMaxWidth = new URLSearchParams(location.search).get('maxWidth')
-const demoMaxWidth: string | number =
-  rawMaxWidth == null || rawMaxWidth === ''
-    ? '100%'
-    : /^\d+(\.\d+)?$/.test(rawMaxWidth)
-      ? Number(rawMaxWidth)
-      : rawMaxWidth
+/**
+ * ============================================================
+ *  全量配置面板
+ * ============================================================
+ * 下面 SCHEMA 是这个演示页唯一的一份「可配置项清单」：
+ * 每一项都对应组件库对外暴露的一个 prop / config 字段。
+ *
+ * 想加字段：往 SCHEMA 里补一行，再在 cfg 里给个默认值即可，
+ * 面板渲染、条目计数、重置逻辑都会自动跟上。
+ */
 
-// —— 调试模式：开启后展示「查看数据结构」按钮 ——
-const debugMode = ref(false)
-const showDebugModal = ref(false)
-const debugJson = computed(() => JSON.stringify(messages.value, null, 2))
-function toggleDebug() {
-  debugMode.value = !debugMode.value
-  if (!debugMode.value) showDebugModal.value = false
+type FieldType = 'bool' | 'enum' | 'number' | 'text' | 'multi'
+
+interface FieldOption {
+  value: string
+  label: string
 }
+
+interface ConfigField {
+  /** cfg 上的键名 */
+  key: string
+  /** 界面显示的中文名 */
+  label: string
+  /**
+   * 对应的 prop 字段名（显示在标签右侧的小代码块）。
+   * 省略表示该键名与字段名一致
+   */
+  field?: string
+  type: FieldType
+  options?: FieldOption[]
+  list?: string[]
+  min?: number
+  max?: number
+  step?: number
+  placeholder?: string
+  /** 右侧灰色小字：默认值 / 取值说明 */
+  hint?: string
+}
+
+interface ConfigGroup {
+  title: string
+  /** 对应的 prop 名 */
+  prop: string
+  desc?: string
+  fields: ConfigField[]
+}
+
+/** 内置 AI 头像键名——头像输入框给个 datalist，既能选也能填自定义 URL */
+const AVATAR_KEYS = AI_AVATAR_PRESETS.map((p) => p.key)
+
+const SCHEMA: ConfigGroup[] = [
+  {
+    title: '容器与文案',
+    prop: 'ChatContainer',
+    desc: '顶层 props：主题、开场白文案、模型名、输入框占位。',
+    fields: [
+      {
+        key: 'theme',
+        label: '主题',
+        type: 'enum',
+        options: [
+          { value: 'light', label: '浅色' },
+          { value: 'dark', label: '深色' },
+          { value: 'auto', label: '跟随系统' }
+        ],
+        hint: "默认 'light'"
+      },
+      { key: 'welcomeTitle', label: '开场白标题', field: 'welcomeTitle', type: 'text', hint: '无消息时展示' },
+      {
+        key: 'welcomeDescription',
+        label: '开场白描述',
+        field: 'welcomeDescription',
+        type: 'text',
+        hint: '无消息时展示'
+      },
+      { key: 'assistantName', label: '模型名称', field: 'assistantName', type: 'text', hint: "默认 'AI 助手'" },
+      {
+        key: 'placeholder',
+        label: '输入框占位',
+        type: 'text',
+        placeholder: '留空则用组件默认值'
+      },
+      {
+        key: 'maxWidth',
+        label: '内容列最大宽度',
+        field: 'maxWidth',
+        type: 'text',
+        placeholder: "100% / 900 / 60ch",
+        hint: '一处管开场白 / 消息列表 / 输入框三列，默认 100%'
+      }
+    ]
+  },
+  {
+    title: '头像',
+    prop: 'assistantAvatar / userAvatar / showAvatar',
+    desc: '可填内置品牌键名或图片 URL。注意：键名要先过 resolveAvatar() 才会变成图片，组件本身只认最终 URL。',
+    fields: [
+      { key: 'showAvatar', label: '显示头像', field: 'showAvatar', type: 'bool', hint: '默认 true' },
+      {
+        key: 'assistantAvatar',
+        label: '模型头像',
+        field: 'assistantAvatar',
+        type: 'text',
+        list: AVATAR_KEYS,
+        placeholder: '内置键名或 URL',
+        hint: `内置 ${AVATAR_KEYS.length} 个品牌`
+      },
+      {
+        key: 'userAvatar',
+        label: '用户头像',
+        field: 'userAvatar',
+        type: 'text',
+        list: AVATAR_KEYS,
+        placeholder: '内置键名或 URL',
+        hint: '留空用内置人形图标'
+      }
+    ]
+  },
+  {
+    title: '附件上传',
+    prop: 'uploadConfig',
+    fields: [
+      { key: 'uploadEnabled', label: '启用上传', field: 'enabled', type: 'bool', hint: '默认 false' },
+      { key: 'uploadMultiple', label: '允许多选', field: 'multiple', type: 'bool' },
+      {
+        key: 'uploadAccept',
+        label: '接受类型',
+        field: 'accept',
+        type: 'text',
+        placeholder: "如 image/*",
+        hint: '留空不限'
+      },
+      { key: 'uploadMaxCount', label: '最大文件数', field: 'maxCount', type: 'number', min: 1, max: 20, hint: '留空不限' },
+      {
+        key: 'uploadMaxSize',
+        label: '单文件上限（MB）',
+        field: 'maxSize',
+        type: 'number',
+        min: 0,
+        max: 200,
+        step: 1,
+        hint: '演示按 MB 填，内部换算成字节'
+      }
+    ]
+  },
+  {
+    title: '思考块',
+    prop: 'thinkingConfig',
+    desc: '长思考默认加 320px 高度上限、超出内部滚动，流式时自动贴底。',
+    fields: [
+      { key: 'thinkScrollable', label: '超高时内部滚动', field: 'scrollable', type: 'bool', hint: '默认 true' },
+      {
+        key: 'thinkMaxHeight',
+        label: '正文高度上限（px）',
+        field: 'maxHeight',
+        type: 'number',
+        min: 80,
+        max: 800,
+        step: 20,
+        hint: '默认 320'
+      },
+      { key: 'thinkFollowStream', label: '流式贴底跟随', field: 'followStream', type: 'bool', hint: '默认 true' },
+      {
+        key: 'thinkScrollbar',
+        label: '滚动条时机',
+        field: 'scrollbar',
+        type: 'enum',
+        options: [
+          { value: 'hover', label: '悬停淡入' },
+          { value: 'always', label: '常显' },
+          { value: 'hidden', label: '隐藏（仍可滚）' }
+        ],
+        hint: "默认 'hover'"
+      },
+      {
+        key: 'thinkExpanded',
+        label: '初始展开',
+        field: 'defaultExpanded',
+        type: 'enum',
+        options: [
+          { value: 'default', label: '跟随默认（流式展开/完成折叠）' },
+          { value: 'true', label: '展开' },
+          { value: 'false', label: '折叠' }
+        ]
+      }
+    ]
+  },
+  {
+    title: '工具调用',
+    prop: 'toolCallsConfig',
+    desc: '同一条消息里的多个调用默认折叠成一组，只展示最新一个。',
+    fields: [
+      { key: 'toolGroup', label: '折叠成组', field: 'group', type: 'bool', hint: '默认 true' },
+      {
+        key: 'toolCollapseThreshold',
+        label: '折叠阈值',
+        field: 'collapseThreshold',
+        type: 'number',
+        min: 2,
+        max: 10,
+        hint: '达到该数量才折叠，默认 2'
+      },
+      {
+        key: 'toolExpanded',
+        label: '折叠组默认展开',
+        field: 'defaultExpanded',
+        type: 'bool',
+        hint: '默认 false'
+      }
+    ]
+  },
+  {
+    title: '消息操作栏',
+    prop: 'actionsConfig',
+    desc: '气泡下方的复制 / 重新生成。默认悬停该条消息才浮现。',
+    fields: [
+      { key: 'actionsEnable', label: '显示操作栏', field: 'enable', type: 'bool', hint: '默认 true' },
+      { key: 'actionsCopy', label: '显示「复制」', field: 'copy', type: 'bool', hint: '默认 true' },
+      { key: 'actionsRetry', label: '显示「重新生成」', field: 'retry', type: 'bool', hint: '默认 true' },
+      {
+        key: 'actionsRetryOnlyLast',
+        label: '重新生成仅最后一条',
+        field: 'retryOnlyLast',
+        type: 'bool',
+        hint: '默认 true'
+      },
+      {
+        key: 'actionsCopiedDuration',
+        label: '「已复制」停留（ms）',
+        field: 'copiedDuration',
+        type: 'number',
+        min: 200,
+        max: 5000,
+        step: 100,
+        hint: '默认 1600'
+      }
+    ]
+  },
+  {
+    title: '运行元信息',
+    prop: 'messageMetaConfig',
+    desc: '耗时 / 首字延迟 / token 用量。开启后才出现这一行。',
+    fields: [
+      { key: 'metaEnable', label: '显示元信息行', field: 'enable', type: 'bool', hint: '默认 false' },
+      {
+        key: 'metaItems',
+        label: '展示哪些项',
+        field: 'items',
+        type: 'multi',
+        options: [
+          { value: 'duration', label: '耗时' },
+          { value: 'firstToken', label: '首字延迟' },
+          { value: 'tokens', label: 'token' },
+          { value: 'time', label: '时间' }
+        ],
+        hint: "默认 ['duration','tokens']"
+      },
+      {
+        key: 'metaPosition',
+        label: '与操作栏排布',
+        field: 'position',
+        type: 'enum',
+        options: [
+          { value: 'inline', label: '同一行' },
+          { value: 'below', label: '单独一行' }
+        ],
+        hint: "默认 'inline'"
+      },
+      { key: 'metaShowForUser', label: 'user 消息也显示', field: 'showForUser', type: 'bool', hint: '默认 false' },
+      {
+        key: 'metaVisibility',
+        label: '显隐时机',
+        field: 'visibility',
+        type: 'enum',
+        options: [
+          { value: 'hover', label: '悬停显示' },
+          { value: 'always', label: '常显' }
+        ],
+        hint: "默认 'hover'（触摸设备退化为常显）"
+      }
+    ]
+  },
+  {
+    title: '侧边消息条',
+    prop: 'messageRailConfig',
+    desc: '消息列表左边缘一列短横条，一条消息一根，条宽反映内容长度。',
+    fields: [
+      { key: 'railEnable', label: '启用侧边条', field: 'enable', type: 'bool', hint: '默认 false' },
+      {
+        key: 'railWidthBy',
+        label: '条宽依据',
+        field: 'widthBy',
+        type: 'enum',
+        options: [
+          { value: 'length', label: '按内容长度（对数）' },
+          { value: 'role', label: '按角色固定' }
+        ],
+        hint: "默认 'length'"
+      },
+      { key: 'railMinWidth', label: '最短条宽（px）', field: 'minWidth', type: 'number', min: 2, max: 40, hint: '默认 8' },
+      { key: 'railMaxWidth', label: '最长条宽（px）', field: 'maxWidth', type: 'number', min: 4, max: 80, hint: '默认 26' },
+      { key: 'railBarHeight', label: '条高（px）', field: 'barHeight', type: 'number', min: 1, max: 12, hint: '默认 3' },
+      { key: 'railMaxGap', label: '条间距上限（px）', field: 'maxGap', type: 'number', min: 2, max: 40, hint: '默认 10，多时自动压缩' },
+      {
+        key: 'railMaxHeight',
+        label: '条组高度上限（px）',
+        field: 'maxHeight',
+        type: 'number',
+        min: 60,
+        max: 800,
+        step: 10,
+        hint: '默认 320，超出内部滚动'
+      },
+      {
+        key: 'railIdleOpacity',
+        label: '静止透明度',
+        field: 'idleOpacity',
+        type: 'number',
+        min: 0,
+        max: 1,
+        step: 0.05,
+        hint: '默认 0.3'
+      },
+      { key: 'railShowTooltip', label: '悬停显示浮层', field: 'showTooltip', type: 'bool', hint: '默认 true' },
+      { key: 'railClickToScroll', label: '点击跳转', field: 'clickToScroll', type: 'bool', hint: '默认 true' }
+    ]
+  },
+  {
+    title: '追问建议',
+    prop: 'followup',
+    desc: '每条回答完成后的「继续追问」卡片，支持静态列表与接口动态生成。',
+    fields: [
+      {
+        key: 'followupMode',
+        label: '数据来源',
+        type: 'enum',
+        options: [
+          { value: 'dynamic', label: '动态（provider 异步生成）' },
+          { value: 'static', label: '静态（固定列表）' },
+          { value: 'off', label: '关闭' }
+        ]
+      },
+      { key: 'followupTitle', label: '区段标题', field: 'title', type: 'text', hint: "默认 '继续追问'" },
+      {
+        key: 'followupTrigger',
+        label: '触发模式',
+        field: 'mode',
+        type: 'enum',
+        options: [
+          { value: 'latest', label: '仅最后一条消息' },
+          { value: 'after-answer', label: '每条回答后都展示' }
+        ],
+        hint: "默认 'latest'"
+      },
+      {
+        key: 'followupDuringStreaming',
+        label: '流式输出中就展示',
+        field: 'showDuringStreaming',
+        type: 'bool',
+        hint: '默认 false'
+      },
+      { key: 'followupAutoSend', label: '点击后直接发送', field: 'autoSend', type: 'bool', hint: '默认 true' }
+    ]
+  },
+  {
+    title: '运行状态（演示用）',
+    prop: 'disabled / generating',
+    desc: '手动把容器切到禁用 / 生成中，方便看按钮与输入框的状态差异。',
+    fields: [
+      {
+        key: 'forceDisabled',
+        label: '强制 disabled',
+        type: 'bool',
+        hint: '禁用输入框与按钮'
+      },
+      {
+        key: 'forceGenerating',
+        label: '强制 generating',
+        type: 'bool',
+        hint: '按钮变「停止」，但输入框仍可打字'
+      },
+      { key: 'debug', label: '调试模式', type: 'bool', hint: '右下角显示「查看数据结构」' }
+    ]
+  }
+]
+
+/** 面板里的条目总数——显示在顶栏那个按钮上 */
+const TOTAL_FIELDS = SCHEMA.reduce((n, g) => n + g.fields.length, 0)
+
+/** 内容列宽度可以被 ?maxWidth=900 初始化，进面板后还能改 */
+const rawMaxWidth = new URLSearchParams(location.search).get('maxWidth')
+
+const DEFAULTS = {
+  // 容器与文案
+  theme: 'light' as ThemeMode | 'auto',
+  welcomeTitle: '你好，我是 AI 助手',
+  welcomeDescription: '这是一个大模型对话 UI 组件库的演示。试试下面的预设问题，或直接输入消息。',
+  assistantName: 'AI 助手',
+  placeholder: '',
+  maxWidth: rawMaxWidth && rawMaxWidth !== '' ? rawMaxWidth : '100%',
+
+  // 头像
+  showAvatar: true,
+  assistantAvatar: '',
+  userAvatar: '',
+
+  // 附件上传
+  uploadEnabled: true,
+  uploadMultiple: true,
+  uploadAccept: '',
+  uploadMaxCount: 6,
+  uploadMaxSize: 10,
+
+  // 思考块
+  thinkScrollable: true,
+  thinkMaxHeight: 320,
+  thinkFollowStream: true,
+  thinkScrollbar: 'hover' as 'hover' | 'always' | 'hidden',
+  thinkExpanded: 'default' as 'default' | 'true' | 'false',
+
+  // 工具调用
+  toolGroup: true,
+  toolCollapseThreshold: 2,
+  toolExpanded: false,
+
+  // 操作栏
+  actionsEnable: true,
+  actionsCopy: true,
+  actionsRetry: true,
+  actionsRetryOnlyLast: true,
+  actionsCopiedDuration: 1600,
+
+  // 元信息
+  metaEnable: true,
+  metaItems: ['duration', 'firstToken', 'tokens'] as MessageMetaItem[],
+  metaPosition: 'inline' as 'inline' | 'below',
+  metaShowForUser: false,
+  metaVisibility: 'hover' as 'always' | 'hover',
+
+  // 侧边条
+  railEnable: true,
+  railWidthBy: 'length' as 'length' | 'role',
+  railMinWidth: 8,
+  railMaxWidth: 26,
+  railBarHeight: 3,
+  railMaxGap: 10,
+  railMaxHeight: 320,
+  railIdleOpacity: 0.3,
+  railShowTooltip: true,
+  railClickToScroll: true,
+
+  // 追问
+  followupMode: 'dynamic' as 'dynamic' | 'static' | 'off',
+  followupTitle: '继续追问',
+  followupTrigger: 'latest' as 'after-answer' | 'latest',
+  followupDuringStreaming: false,
+  followupAutoSend: true,
+
+  // 运行状态
+  forceDisabled: false,
+  forceGenerating: false,
+  debug: false
+}
+
+const cfg = reactive({ ...DEFAULTS })
+
+/** 面板开关；默认收起，免得一进来就把对话区挤小 */
+const showConfig = ref(false)
+
+function resetConfig() {
+  Object.assign(cfg, DEFAULTS)
+}
+
+/** multi 类型：勾选 / 取消勾选数组里的某一项 */
+function toggleMulti(key: string, value: string) {
+  const arr = cfg[key as keyof typeof cfg] as string[]
+  const i = arr.indexOf(value)
+  if (i >= 0) arr.splice(i, 1)
+  else arr.push(value)
+}
+
+const themeLabel = computed(
+  () => ({ light: '浅色', dark: '深色', auto: '跟随系统' })[cfg.theme] ?? cfg.theme
+)
+
+function toggleTheme() {
+  const order: (ThemeMode | 'auto')[] = ['light', 'dark', 'auto']
+  cfg.theme = order[(order.indexOf(cfg.theme) + 1) % order.length]
+}
+
 async function copyDebugJson() {
   try {
     await navigator.clipboard.writeText(debugJson.value)
@@ -147,45 +696,85 @@ const presetQuestions: PresetQuestion[] = [
   { id: 'q8', label: '多轮对话（侧边条）', prompt: '一次性铺出多轮对话，用来演示左侧那列消息条' }
 ]
 
-// —— 工具调用展示配置：演示「多个调用折叠成组，只展示最新一个」 ——
-const toolGroupEnabled = ref(true)
+// —— 工具调用展示配置 ——
 const toolCallsConfig = computed<ToolCallsConfig>(() => ({
-  group: toolGroupEnabled.value
+  group: cfg.toolGroup,
+  collapseThreshold: cfg.toolCollapseThreshold,
+  defaultExpanded: cfg.toolExpanded
 }))
-function toggleToolGroup() {
-  toolGroupEnabled.value = !toolGroupEnabled.value
-}
 
-// —— 消息元信息：耗时 / 首字延迟 / token —— //
-// 三档循环，顺便把「同排 / 单独一行」两种排布都演示到
-const metaMode = ref<'off' | 'inline' | 'below'>('inline')
+// —— 思考块配置 ——
+// defaultExpanded 是三态：面板里用 'default' 表示「不传、走组件默认行为」
+const thinkingConfig = computed<ThinkingConfig>(() => ({
+  scrollable: cfg.thinkScrollable,
+  maxHeight: cfg.thinkMaxHeight,
+  followStream: cfg.thinkFollowStream,
+  scrollbar: cfg.thinkScrollbar,
+  defaultExpanded: cfg.thinkExpanded === 'default' ? undefined : cfg.thinkExpanded === 'true'
+}))
+
+// —— 消息元信息：耗时 / 首字延迟 / token ——
 const messageMetaConfig = computed<MessageMetaConfig>(() => ({
-  enable: metaMode.value !== 'off',
-  items: ['duration', 'firstToken', 'tokens'],
-  position: metaMode.value === 'below' ? 'below' : 'inline'
+  enable: cfg.metaEnable,
+  items: cfg.metaItems,
+  position: cfg.metaPosition,
+  showForUser: cfg.metaShowForUser,
+  visibility: cfg.metaVisibility
 }))
-const metaModeLabel = computed(
-  () => ({ off: '关', inline: '同排', below: '换行' })[metaMode.value]
-)
-function toggleMeta() {
-  const order: Array<'off' | 'inline' | 'below'> = ['off', 'inline', 'below']
-  metaMode.value = order[(order.indexOf(metaMode.value) + 1) % order.length]
-}
 
-// —— 侧边消息条：一条消息一根短横条 —— //
-// 三档循环：关 / 按长度 / 按角色，顺便把两种取宽策略都演示到
-const railMode = ref<'off' | 'length' | 'role'>('length')
+// —— 侧边消息条：一条消息一根短横条 ——
 const messageRailConfig = computed<MessageRailConfig>(() => ({
-  enable: railMode.value !== 'off',
-  widthBy: railMode.value === 'role' ? 'role' : 'length'
+  enable: cfg.railEnable,
+  widthBy: cfg.railWidthBy,
+  minWidth: cfg.railMinWidth,
+  maxWidth: cfg.railMaxWidth,
+  barHeight: cfg.railBarHeight,
+  maxGap: cfg.railMaxGap,
+  maxHeight: cfg.railMaxHeight,
+  idleOpacity: cfg.railIdleOpacity,
+  showTooltip: cfg.railShowTooltip,
+  clickToScroll: cfg.railClickToScroll
 }))
-const railModeLabel = computed(
-  () => ({ off: '关', length: '按长度', role: '按角色' })[railMode.value]
-)
-function toggleRail() {
-  const order: Array<'off' | 'length' | 'role'> = ['off', 'length', 'role']
-  railMode.value = order[(order.indexOf(railMode.value) + 1) % order.length]
-}
+
+// —— 消息操作栏 ——
+const actionsConfig = computed<MessageActionsConfig>(() => ({
+  enable: cfg.actionsEnable,
+  copy: cfg.actionsCopy,
+  retry: cfg.actionsRetry,
+  retryOnlyLast: cfg.actionsRetryOnlyLast,
+  copiedDuration: cfg.actionsCopiedDuration
+}))
+
+// —— 附件上传 ——
+// maxSize 面板上按 MB 填，这里换算成字节
+const uploadConfig = computed<Partial<UploadConfig>>(() => {
+  const c: Partial<UploadConfig> = {
+    enabled: cfg.uploadEnabled,
+    multiple: cfg.uploadMultiple
+  }
+  if (cfg.uploadAccept.trim()) c.accept = cfg.uploadAccept.trim()
+  if (cfg.uploadMaxCount > 0) c.maxCount = cfg.uploadMaxCount
+  if (cfg.uploadMaxSize > 0) c.maxSize = cfg.uploadMaxSize * 1024 * 1024
+  return c
+})
+
+// —— 内容列宽度 ——
+// 纯数字转 number 走 prop 的「数字补 px」分支，其余（'60ch' 等）原样透传
+const demoMaxWidth = computed<string | number>(() => {
+  const raw = String(cfg.maxWidth).trim()
+  if (!raw) return '100%'
+  return /^\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw
+})
+
+// —— 输入框占位：留空回落到组件默认值 ——
+const inputPlaceholder = computed(() => {
+  if (busy.value) return '正在生成中…右侧按钮可停止'
+  return cfg.placeholder.trim() || undefined
+})
+
+// —— 调试模式：开启后展示「查看数据结构」按钮 ——
+const showDebugModal = ref(false)
+const debugJson = computed(() => JSON.stringify(messages.value, null, 2))
 
 /**
  * 演示用：按正文长度反推一个「像真的」token 数，让元信息有数可看。
@@ -239,28 +828,18 @@ const staticFollowup: PresetQuestion[] = [
   { id: 's4', label: '如果我想让它支持语音输入，或者在移动端键盘弹起时让输入框自适应上移，应该怎么接入这套组件库？', prompt: '...' }
 ] 
 
-// 切换 followup 模式：动态 ↔ 静态 ↔ 关闭
-const followupMode = ref<'dynamic' | 'static' | 'off'>('dynamic')
+// 追问：动态 ↔ 静态 ↔ 关闭，其余字段由面板驱动
 const followup = computed<FollowupConfig | PresetQuestion[] | undefined>(() => {
-  if (followupMode.value === 'off') return undefined
-  if (followupMode.value === 'static') return staticFollowup
-  return dynamicFollowup
+  if (cfg.followupMode === 'off') return undefined
+  if (cfg.followupMode === 'static') return staticFollowup
+  return {
+    ...dynamicFollowup,
+    title: cfg.followupTitle.trim() || undefined,
+    mode: cfg.followupTrigger,
+    showDuringStreaming: cfg.followupDuringStreaming,
+    autoSend: cfg.followupAutoSend
+  }
 })
-
-function toggleTheme() {
-  const order: (ThemeMode | 'auto')[] = ['light', 'dark', 'auto']
-  const idx = order.indexOf(theme.value)
-  theme.value = order[(idx + 1) % order.length]
-}
-
-const followupModeLabel = computed(() => {
-  return { dynamic: '动态', static: '静态', off: '关闭' }[followupMode.value]
-})
-function toggleFollowup() {
-  const order: ('dynamic' | 'static' | 'off')[] = ['dynamic', 'static', 'off']
-  const idx = order.indexOf(followupMode.value)
-  followupMode.value = order[(idx + 1) % order.length]
-}
 
 function clearMessages() {
   messages.value = []
@@ -744,6 +1323,177 @@ body {
 .demo-btn--primary:hover {
   background: #5457e5;
   color: #fff;
+}
+/* 「全部配置」展开态：反色，和旁边的操作按钮区分开 */
+.demo-btn--on {
+  background: #18181b;
+  border-color: #18181b;
+  color: #fff;
+}
+.demo-btn--on:hover {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+
+/* —— 全量配置面板 —— */
+.demo-config {
+  flex: 0 1 auto;
+  max-height: 56vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #e7e7ea;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(24, 24, 27, 0.05);
+  overscroll-behavior: contain;
+}
+.demo-config::-webkit-scrollbar {
+  width: 8px;
+}
+.demo-config::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 4px;
+}
+
+.demo-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
+  gap: 10px;
+  padding: 8px;
+}
+
+.demo-config-group {
+  padding: 10px 12px 6px;
+  background: #fafafa;
+  border: 1px solid #ececef;
+  border-radius: 10px;
+}
+
+.demo-config-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+/* 标题不许被压缩——否则长 prop 名会把中文标题挤成一列一个字 */
+.demo-config-group-title {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #18181b;
+}
+.demo-config-group-prop {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 10.5px;
+  color: #a1a1aa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.demo-config-group-desc {
+  margin: 2px 0 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #71717a;
+}
+
+.demo-config-row {
+  padding: 4px 0;
+}
+.demo-config-row + .demo-config-row {
+  border-top: 1px dashed #ededf0;
+}
+.demo-config-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.demo-config-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #3f3f46;
+}
+.demo-config-ctrl {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+}
+/* 第二行：字段名 + 说明。放在独立一行，避免把上面那行的标签挤成一列一个字 */
+.demo-config-sub {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  margin-top: 1px;
+}
+.demo-config-field {
+  font-size: 10px;
+  color: #b4b4bb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.demo-config-hint {
+  font-size: 10px;
+  line-height: 1.4;
+  color: #a1a1aa;
+}
+
+.demo-config-check {
+  width: 15px;
+  height: 15px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+.demo-config-select,
+.demo-config-text,
+.demo-config-num {
+  padding: 3px 6px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: #18181b;
+  background: #fff;
+  border: 1px solid #d4d4d8;
+  border-radius: 6px;
+  outline: none;
+}
+.demo-config-select,
+.demo-config-text {
+  width: 122px;
+}
+.demo-config-num {
+  width: 70px;
+}
+.demo-config-select:focus,
+.demo-config-text:focus,
+.demo-config-num:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+}
+.demo-config-multi {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 10px;
+  max-width: 200px;
+}
+.demo-config-multi-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.demo-config-multi-item input {
+  width: 13px;
+  height: 13px;
+  accent-color: #6366f1;
+  cursor: pointer;
 }
 
 .demo-main {

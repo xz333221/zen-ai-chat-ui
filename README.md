@@ -241,8 +241,8 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `welcomeTitle`      | `string`                   | 见默认     | 开场白标题            |
 | `welcomeDescription`| `string`                   | 见默认     | 开场白描述            |
 | `assistantName`     | `string`                   | `'AI 助手'`| 模型名称              |
-| `assistantAvatar`   | `string`                   | -          | 模型头像：URL / data URL，或内置键名如 `'claude'` |
-| `userAvatar`        | `string`                   | -          | 用户头像：URL / data URL，或内置键名 |
+| `assistantAvatar`   | `string`                   | -          | 模型头像：图片 URL / data URL。想用内置品牌键名要先过 `resolveAvatar()`，见「内置 AI 品牌头像」 |
+| `userAvatar`        | `string`                   | -          | 用户头像：图片 URL / data URL（同样支持 `resolveAvatar()`） |
 | `showAvatar`        | `boolean`                  | `true`     | 是否显示头像          |
 | `placeholder`       | `string`                   | 见默认     | 输入框占位文字        |
 | `theme`             | `'light' \| 'dark' \| 'auto'` | `'light'`  | 主题                  |
@@ -814,6 +814,19 @@ npm run dev      # 启动调试（http://127.0.0.1:7788）
 npm run build    # 构建组件库产物（dist/）
 npm run release  # 一键发版（见下）
 ```
+
+### 演示页的「全部配置」面板
+
+`npm run dev` 打开的演示页顶栏有一个 **全部配置** 按钮（按钮上直接显示当前项数，如「全部配置（50 项）」），
+展开后按 prop 分组列出组件库对外暴露的**每一个可配置项**——改一下立刻能看到对话区的变化，不用去翻文档。
+
+![全部配置面板](docs/config-panel.png)
+
+面板由 `dev/App.vue` 里的一份 `SCHEMA` 驱动：每个字段声明 `{ key, label, field, type, options, hint }`
+就能自动渲染出对应控件（开关 / 下拉 / 数字 / 文本 / 多选），条目计数和「重置配置」也会自动跟上。
+新增一个配置项时只需往 `SCHEMA` 补一行，不会再出现「文档里有、演示里没有」。
+
+演示页还支持 `?maxWidth=900` 这样的 URL 参数来初始化内容列宽度，方便直接截图对比。
 
 ## 发布
 
