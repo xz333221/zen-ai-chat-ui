@@ -156,6 +156,8 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `assistantName`     | `string`                   | `'AI 助手'`| 模型名称              |
 | `assistantAvatar`   | `string`                   | -          | 模型头像：URL / data URL，或内置键名如 `'claude'` |
 | `userAvatar`        | `string`                   | -          | 用户头像：URL / data URL，或内置键名 |
+| `showAvatar`        | `boolean`                  | `true`     | 是否显示头像          |
+| `placeholder`       | `string`                   | 见默认     | 输入框占位文字        |
 | `theme`             | `'light' \| 'dark' \| 'auto'` | `'light'`  | 主题                  |
 | `disabled`          | `boolean`                  | `false`    | 禁用输入（生成中）    |
 | `uploadConfig`      | `Partial<UploadConfig>`    | `{}`       | 附件上传配置          |
