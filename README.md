@@ -402,6 +402,22 @@ const emit = defineEmits<{ pick: [key: string] }>()
 </template>
 ```
 
+### 单条消息覆盖头像
+
+`assistant-avatar` / `user-avatar` 是**全局**配置。如果某一条消息想单独换头像（比如一个会话里切换了模型、或者用户给自己起了不同形象），直接在该条消息上写 `avatar`：
+
+```ts
+messages.value.push({
+  id: 'u1',
+  role: 'user',
+  content: '你好',
+  avatar: 'https://example.com/me.png', // 这条消息专属，优先级高于 user-avatar
+  status: 'done'
+})
+```
+
+优先级为 **`message.avatar` > 全局 prop > 内置 svg 兜底**。`user` 与 `assistant` 两种角色都支持；想还原成「跟随全局」，把该字段删掉（或置为 `''`）即可。
+
 ### 说明
 
 - 所有头像都会被规范化成 **64×64、白色圆底**的 SVG data URL，并以**几何平均边长**对齐视觉尺寸——宽扁的 Logo（如 Claude）不会被缩得比方形 Logo 小一圈。全部 13 个合计约 18.8 KB，已在包内，运行时零请求。

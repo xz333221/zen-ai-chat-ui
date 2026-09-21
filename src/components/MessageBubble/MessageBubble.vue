@@ -159,7 +159,7 @@ defineEmits<{
 }>()
 
 const resolvedAssistantAvatar = computed(() => props.message.avatar || props.assistantAvatar)
-const resolvedUserAvatar = computed(() => props.userAvatar)
+const resolvedUserAvatar = computed(() => props.message.avatar || props.userAvatar)
 const hasAttachments = computed(() => !!props.message.attachments?.length)
 const hasToolCalls = computed(() => !!props.message.toolCalls?.length)
 
