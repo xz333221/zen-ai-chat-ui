@@ -187,6 +187,43 @@
   @include acu-scrollbar(6px);
 }
 
+// —— 滚动条的显示时机 —— //
+// 这几条必须排在 @include 之后：和 mixin 生成的 `&::-webkit-scrollbar-thumb`
+// 同特异性，只能靠源顺序覆盖它写死的底色。
+//
+// ⚠️ 隐藏态**不能**写成 `&:hover::-webkit-scrollbar-thumb`。
+// 实测（Chrome 153 / chrome-headless-shell）Blink 不会因为祖先的伪类状态变化
+// 去重算滚动条伪元素的样式：`:hover` 版本连同 `!important` 一起写都不生效，
+// 计算样式和实际绘制都纹丝不动；而换成 class 驱动同一份 CSS 立刻生效。
+// 对照组——同一个 `:hover` 去改普通后代元素的背景色完全正常，
+// 说明不是 hover 没触发，而是滚动条伪元素不参与这类重算。
+// 所以 hover 状态由 JS 打 `is-scrollbar-visible` 类（ThinkingBlock / MarkdownRenderer）。
+.acu-thinking-body.is-scrollbar-hover {
+  &::-webkit-scrollbar-thumb {
+    background-color: transparent;
+  }
+
+  &.is-scrollbar-visible::-webkit-scrollbar-thumb {
+    background-color: var(--acu-border-strong);
+  }
+
+  // Firefox 没有 webkit 伪元素，走标准属性。
+  // 同一个类驱动，跨引擎行为保持一致（不像 Chromium 需要绕道）。
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-color: transparent transparent;
+    &.is-scrollbar-visible {
+      scrollbar-color: var(--acu-border-strong) transparent;
+    }
+  }
+}
+
+.acu-thinking-body.is-scrollbar-hidden {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 // markdown 里的 think 块：默认展开，无 chevron
 .acu-thinking-md .acu-thinking-body {
   border-top: none;

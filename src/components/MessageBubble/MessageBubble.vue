@@ -34,7 +34,17 @@
       <!-- 附件（user 显示在正文上方） -->
       <div v-if="hasAttachments" class="acu-attachments" :class="`is-${message.role}`">
         <template v-for="att in message.attachments" :key="att.id">
-          <div v-if="isImageType(att.type) && att.preview" class="acu-att-thumb">
+          <div
+            v-if="isImageType(att.type) && att.preview"
+            class="acu-att-thumb"
+            role="button"
+            tabindex="0"
+            :aria-label="`预览 ${att.name}`"
+            :title="`点击预览 ${att.name}`"
+            @click="openPreview(att)"
+            @keydown.enter.prevent="openPreview(att)"
+            @keydown.space.prevent="openPreview(att)"
+          >
             <img :src="att.preview" :alt="att.name" loading="lazy" />
           </div>
           <div v-else class="acu-att-file">
@@ -120,13 +130,21 @@
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
       </svg>
     </div>
+
+    <!-- 图片预览灯箱（点附件缩略图打开） -->
+    <ImagePreview
+      v-model:visible="previewVisible"
+      v-model:index="previewIndex"
+      :images="previewImages"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type {
   ChatMessage,
+  ChatAttachment,
   ToolCallsConfig,
   ThinkingConfig,
   MessageActionsConfig,
@@ -138,6 +156,7 @@ import ThinkingBlock from '@/components/ThinkingBlock/ThinkingBlock.vue'
 import ToolCallGroup from '@/components/ToolCallGroup/ToolCallGroup.vue'
 import MessageActions from '@/components/MessageActions/MessageActions.vue'
 import MessageMeta from '@/components/MessageMeta/MessageMeta.vue'
+import ImagePreview from '@/components/ImagePreview/ImagePreview.vue'
 import { extractThinkSegments } from '@/composables/useMarkdown'
 
 const props = withDefaults(
@@ -226,6 +245,24 @@ const showMeta = computed(() => {
 
 const metaPosition = computed(() => props.messageMetaConfig?.position ?? 'inline')
 const showFooterRow = computed(() => showActions.value || showMeta.value)
+
+// —— 附件图片预览 —— //
+
+const previewVisible = ref(false)
+const previewIndex = ref(0)
+/** 本条消息里的图片附件，顺序与缩略图一致，支持左右切换 */
+const previewImages = computed(() =>
+  (props.message.attachments ?? [])
+    .filter((a) => isImageType(a.type) && !!a.preview)
+    .map((a) => ({ src: a.preview as string, name: a.name }))
+)
+
+function openPreview(att: ChatAttachment) {
+  const idx = previewImages.value.findIndex((i) => i.src === att.preview)
+  if (idx < 0) return
+  previewIndex.value = idx
+  previewVisible.value = true
+}
 
 /**
  * 复制内容：
@@ -424,6 +461,16 @@ const showRetryAction = computed(() => {
   overflow: hidden;
   border: 1px solid var(--acu-border);
   background: var(--acu-surface);
+  cursor: zoom-in;
+  @include acu-focus-ring(1px);
+  transition: border-color var(--acu-duration-fast) var(--acu-easing),
+    transform var(--acu-duration-fast) var(--acu-easing);
+
+  &:hover {
+    border-color: var(--acu-primary);
+    transform: translateY(-1px);
+  }
+
   img {
     width: 100%;
     height: 100%;

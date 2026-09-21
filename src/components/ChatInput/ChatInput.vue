@@ -24,7 +24,19 @@
     <!-- 附件预览 -->
     <div v-if="pendingFiles.length" class="acu-input-attachments">
       <div v-for="f in pendingFiles" :key="f.id" class="acu-input-att">
-        <div v-if="f.preview" class="acu-input-att-thumb">
+        <!-- 图片可点开看大图；用 role+tabindex 而不是 <button>，
+             免得为了重置按钮默认样式把这里已有的尺寸/圆角规则全改一遍 -->
+        <div
+          v-if="f.preview"
+          class="acu-input-att-thumb"
+          role="button"
+          tabindex="0"
+          :aria-label="`预览 ${f.file.name}`"
+          :title="`点击预览 ${f.file.name}`"
+          @click="openPreview(f)"
+          @keydown.enter.prevent="openPreview(f)"
+          @keydown.space.prevent="openPreview(f)"
+        >
           <img :src="f.preview" :alt="f.file.name" />
         </div>
         <div v-else class="acu-input-att-file">
@@ -40,6 +52,13 @@
         </button>
       </div>
     </div>
+
+    <!-- 图片预览灯箱（点缩略图打开） -->
+    <ImagePreview
+      v-model:visible="previewVisible"
+      v-model:index="previewIndex"
+      :images="previewImages"
+    />
 
     <div class="acu-input-row">
       <button
@@ -122,6 +141,7 @@
 import { ref, computed, nextTick, onMounted } from 'vue'
 import type { SelectedFile, UploadConfig } from '@/types'
 import { uid, isImageType } from '@/utils/format'
+import ImagePreview from '@/components/ImagePreview/ImagePreview.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -157,6 +177,23 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
 const isComposing = ref(false)
 let dragCounter = 0
+
+// —— 图片预览 —— //
+const previewVisible = ref(false)
+const previewIndex = ref(0)
+/** 待发送附件里的图片，顺序与缩略图一致，支持左右切换 */
+const previewImages = computed(() =>
+  pendingFiles.value
+    .filter((f) => !!f.preview)
+    .map((f) => ({ src: f.preview as string, name: f.file.name }))
+)
+
+function openPreview(f: SelectedFile) {
+  const idx = previewImages.value.findIndex((i) => i.src === f.preview)
+  if (idx < 0) return
+  previewIndex.value = idx
+  previewVisible.value = true
+}
 
 const uploadConfig = computed<UploadConfig>(() => ({
   enabled: true,
@@ -368,6 +405,9 @@ defineExpose({
   border-radius: var(--acu-radius-sm);
   overflow: hidden;
   border: 1px solid var(--acu-border);
+  cursor: zoom-in;
+  @include acu-focus-ring(1px);
+
   img {
     width: 100%;
     height: 100%;

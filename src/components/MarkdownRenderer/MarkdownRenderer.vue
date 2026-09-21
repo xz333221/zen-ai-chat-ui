@@ -5,7 +5,14 @@
     - 事件委托处理代码块复制按钮
     - 样式为非 scoped（带 .acu-md 前缀隔离），因 v-html 内容无法被 scoped 命中
   -->
-  <div ref="root" class="acu-md" v-html="html" @click="onCodeCopyClick"></div>
+  <div
+    ref="root"
+    class="acu-md"
+    v-html="html"
+    @click="onCodeCopyClick"
+    @mouseover="onThinkingOver"
+    @mouseout="onThinkingOut"
+  ></div>
 </template>
 
 <script setup lang="ts">
@@ -42,6 +49,32 @@ watch(isShikiReady, (ready) => {
 })
 
 onBeforeUnmount(() => cancelAnimationFrame(rafId))
+
+// —— 思考块滚动条的悬停显现 —— //
+// v-html 里的 <think> 块没有 Vue 生命周期，挂不上 @mouseenter，只能委托。
+// （ThinkingBlock 那一路是自己管的，这里只管正文里内联的 <think>。）
+//
+// 为什么要 JS 而不是 CSS :hover：Blink 不会因祖先伪类状态变化去重算
+// 滚动条伪元素的样式，:hover 写法（连 !important）实测完全不生效，
+// class 驱动才有效。详见 base.scss 里 `.acu-thinking-body.is-scrollbar-hover` 的注释。
+function thinkingBodyOf(e: Event): HTMLElement | null {
+  const t = e.target
+  if (!(t instanceof Element)) return null
+  return t.closest<HTMLElement>('.acu-thinking-body.is-scrollbar-hover')
+}
+
+function onThinkingOver(e: Event) {
+  thinkingBodyOf(e)?.classList.add('is-scrollbar-visible')
+}
+
+function onThinkingOut(e: Event) {
+  const body = thinkingBodyOf(e)
+  if (!body) return
+  // 还在同一个思考块内部挪动时不要撤掉，否则滚动条会跟着鼠标闪
+  const to = (e as MouseEvent).relatedTarget
+  if (to instanceof Node && body.contains(to)) return
+  body.classList.remove('is-scrollbar-visible')
+}
 
 // 代码块复制：事件委托
 function onCodeCopyClick(e: MouseEvent) {

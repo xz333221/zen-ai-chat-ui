@@ -6,12 +6,12 @@
 
 - **流式输出**：逐字渲染 + 光标，支持 `content` / `reasoning` 双通道分片
 - **停止生成**：生成中发送按钮自动变停止按钮，点击抛 `stop` 事件，由业务侧中断请求
-- **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长
+- **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
 - **运行元信息**：可选在气泡下方展示回答耗时、首字延迟、token 用量（`1.2s · 510ms · ↑26 ↓571`），耗时由 `useStreaming` 自动计时
 - **Markdown 渲染**：基于 markdown-it + Shiki，双主题代码高亮、表格、引用、任务列表，代码块带语言标签与一键复制
-- **附件上传**：点击 / 拖拽，图片缩略图预览，文件卡片，可移除
+- **附件上传**：点击 / 拖拽，图片缩略图 + 文件卡片，可移除；图片点击可放大预览（灯箱：左右切换 / 键盘导航 / 点背景关闭）
 - **开场白 + 预设问题**：首屏欢迎语 + 可点击的话题卡片
 - **双主题**：浅色 / 深色 / 跟随系统，通过 CSS 变量驱动，可深度定制
 - **样式自洽**：所有组件带 `acu-` 前缀，CSS 变量作用域隔离，不污染宿主
@@ -157,6 +157,10 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 
 ![思考块超出后内部滚动](docs/thinking-scroll.png)
 
+滚动条默认**悬停时才淡入**，静止状态完全不干扰阅读（也可设为常显或彻底隐藏）：
+
+![思考块悬停时滚动条淡入](docs/scrollbar-hover.png)
+
 ```
 ┌─────────────────────────────────────────┐
 │ ◐ 思考中 •••                           │  ← 头部常驻，随时可折叠
@@ -176,6 +180,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `scrollable`    | `boolean` | `true`  | 正文超出高度上限时是否内部滚动；设 `false` 恢复为全部铺开 |
 | `maxHeight`     | `number`  | `320`   | 正文最大高度（px） |
 | `followStream`  | `boolean` | `true`  | 流式输出时是否自动贴底跟随 |
+| `scrollbar`     | `'hover' \| 'always' \| 'hidden'` | `'hover'` | 正文滚动条显隐策略：悬停淡入 / 常显 / 完全隐藏（滚动能力都保留） |
 | `defaultExpanded` | `boolean` | -     | 初始是否展开；不传则沿用默认（streaming 展开、完成折叠） |
 
 ```vue
@@ -195,6 +200,20 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
   :thinking-config="{ scrollable: false }"
   @send="onSend"
 />
+
+<!-- 滚动条常显（默认是悬停才淡入） -->
+<ChatContainer
+  :messages="messages"
+  :thinking-config="{ scrollbar: 'always' }"
+  @send="onSend"
+/>
+
+<!-- 彻底不要滚动条（仍可滚动，只是不显示） -->
+<ChatContainer
+  :messages="messages"
+  :thinking-config="{ scrollbar: 'hidden' }"
+  @send="onSend"
+/>
 ```
 
 也可以单独用 `<ThinkingBlock>`：
@@ -204,6 +223,8 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 ```
 
 > 跑 `npm run dev` 后点预设里的「超长思考滚动」可以直接看到效果（含流式贴底跟随）。
+
+> `scrollbar: 'hover'` 为什么不是纯 CSS？因为 Blink 在祖先 `:hover` 状态变化时**不会重算** `::-webkit-scrollbar-thumb` 的样式（`&:hover::-webkit-scrollbar-thumb` 实测无效），所以组件内部用 `mouseenter/mouseleave` 切一个 `is-scrollbar-visible` 类来驱动。这是经验证的实现细节，正常使用无需关心。
 
 ## 组件 API
 
@@ -242,7 +263,53 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 
 ### 其他可独立使用的组件
 
-`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer`、`FollowupSuggestions` 均已导出，可单独使用。
+`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
+
+## 附件与图片预览
+
+用户上传的图片既可以出现在输入框待发送区，也可以出现在已发送的 user 气泡里。两处的图片缩略图都支持**点击放大预览**。
+
+- 缩略图带 `cursor: zoom-in` 与 `role="button"`，可键盘聚焦（Enter / Space 打开）
+- 灯箱通过 `Teleport` 挂到 `body`，不受宿主容器 `overflow` 裁剪
+- 多图时显示左右切换按钮与 `当前 / 总数` 计数；支持键盘 `←` `→` 切换、`Esc` 关闭、点背景关闭
+- 灯箱底色固定为深色半透明（这是图片查看器的通用惯例），不跟随主题
+
+![图片点击放大预览（灯箱）](docs/image-preview.png)
+
+图片附件通过 `message.attachments`（`ChatAttachment[]`）的 `preview` 字段提供预览地址：
+
+```ts
+const attachments: ChatAttachment[] = files.map(f => ({
+  id: f.id,
+  name: f.file.name,
+  size: f.file.size,
+  type: f.file.type,
+  preview: f.preview    // 图片才有，指向可加载的 URL / data URL
+}))
+```
+
+也可以单独用 `<ImagePreview>`：
+
+```vue
+<ImagePreview
+  v-model:visible="previewVisible"
+  v-model:index="previewIndex"
+  :images="[{ src: '/a.png', name: 'a.png' }, { src: '/b.png', name: 'b.png' }]"
+/>
+```
+
+| Prop      | 类型             | 默认值 | 说明 |
+| --------- | ---------------- | ------ | ---- |
+| `visible` | `boolean`        | `false`| 是否显示（用 `v-model:visible` 双向绑定） |
+| `images`  | `PreviewImage[]` | `[]`   | 图片列表：`{ src: string; name?: string }` |
+| `index`   | `number`         | `0`    | 当前第几张（用 `v-model:index` 双向绑定） |
+
+| Event            | 说明 |
+| ---------------- | ---- |
+| `update:visible` | 关闭 / 打开时回传 |
+| `update:index`   | 切换图片时回传 |
+
+> 跑 `npm run dev` 后，把图片拖进输入框或直接发送，点缩略图即可看到灯箱效果。
 
 ## 工具调用
 

@@ -65,9 +65,15 @@
         v-show="expanded"
         ref="bodyRef"
         class="acu-thinking-body"
-        :class="{ 'is-scrollable': scrollable }"
+        :class="[
+          { 'is-scrollable': scrollable },
+          scrollable ? `is-scrollbar-${scrollbarMode}` : '',
+          { 'is-scrollbar-visible': showScrollbar }
+        ]"
         :style="bodyStyle"
         @scroll.passive="onScroll"
+        @mouseenter="onBodyEnter"
+        @mouseleave="onBodyLeave"
       >
         <MarkdownRenderer :source="content" />
         <span v-if="streaming && content" class="acu-cursor" aria-hidden="true"></span>
@@ -102,6 +108,21 @@ const props = withDefaults(
 
 const scrollable = computed(() => props.config?.scrollable !== false)
 const followStream = computed(() => props.config?.followStream !== false)
+// 默认 hover：静止时不显示滚动条，鼠标移入正文才淡入
+const scrollbarMode = computed(() => props.config?.scrollbar ?? 'hover')
+
+// Blink 不认 `:hover` 驱动滚动条伪元素（详见 base.scss 里的说明），只能自己切类。
+// 用 mouseenter/mouseleave 而不是 mouseover/mouseout：这对事件不冒泡，
+// 鼠标在正文内部移动不会反复触发。
+const scrollbarHovering = ref(false)
+const showScrollbar = computed(() => scrollable.value && scrollbarMode.value === 'hover' && scrollbarHovering.value)
+
+function onBodyEnter() {
+  scrollbarHovering.value = true
+}
+function onBodyLeave() {
+  scrollbarHovering.value = false
+}
 
 // 高度上限走 CSS 变量，这样既能被 base.scss 的共享样式消费，
 // 又不用为每个实例生成一条独立规则

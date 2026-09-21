@@ -275,7 +275,7 @@ const defaultThinkRender =
       `</span>` +
       `<span class="acu-thinking-title">思考</span>` +
       `</button>` +
-      `<div class="acu-thinking-body is-scrollable">${inner}</div>` +
+      `<div class="acu-thinking-body is-scrollable is-scrollbar-hover">${inner}</div>` +
       `</div>`
     )
   })

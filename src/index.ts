@@ -18,6 +18,7 @@ export { default as ChatInput } from './components/ChatInput/ChatInput.vue'
 export { default as MarkdownRenderer } from './components/MarkdownRenderer/MarkdownRenderer.vue'
 export { default as FollowupSuggestions } from './components/FollowupSuggestions/FollowupSuggestions.vue'
 export { default as MessageMeta } from './components/MessageMeta/MessageMeta.vue'
+export { default as ImagePreview } from './components/ImagePreview/ImagePreview.vue'
 
 // composables
 export {
@@ -68,6 +69,7 @@ export type {
   MessageMetaExtra,
   MessageMetaItem,
   MessageMetaConfig,
+  PreviewImage,
   PresetQuestion,
   FollowupInput,
   FollowupConfig,

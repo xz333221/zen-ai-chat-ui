@@ -96,6 +96,18 @@ export interface ThinkingConfig {
    */
   followStream?: boolean
   /**
+   * 内部滚动条的显示时机。
+   *
+   * 思考是次要内容，一条常驻的灰条会一直把注意力从正文上拉走；
+   * 但完全藏掉又让人不知道「下面还有」。
+   *
+   * - `'hover'`：静止时隐形，鼠标移入正文才淡入
+   * - `'always'`：常显
+   * - `'hidden'`：完全隐藏（滚动能力保留，滚轮 / 触控 / 键盘照常）
+   * @default 'hover'
+   */
+  scrollbar?: 'hover' | 'always' | 'hidden'
+  /**
    * 初始是否展开。不传则沿用默认行为（streaming 展开、完成折叠）
    */
   defaultExpanded?: boolean
@@ -252,6 +264,14 @@ export interface ChatMessage {
   error?: string
   /** 头像覆盖（URL） */
   avatar?: string
+}
+
+/** 图片预览灯箱里的一项 */
+export interface PreviewImage {
+  /** 图片地址（URL / data URL） */
+  src: string
+  /** 展示用文件名 */
+  name?: string
 }
 
 /** 预设问题 */
