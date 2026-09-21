@@ -114,6 +114,51 @@ export interface ThinkingConfig {
 }
 
 /**
+ * 消息侧边条（MessageRail）配置。
+ *
+ * 贴在消息列表左边缘的一条竖直「刻度串」：**一条消息 = 一根短横条**，
+ * 条数随对话增长。用来在长篇对话里一眼看清结构（谁问谁答、答了多长）
+ * 并快速跳转，形态参考 Codex 侧边那组小横条。
+ */
+export interface MessageRailConfig {
+  /**
+   * 是否启用。默认关闭——它属于「锦上添花」的信息，
+   * 会话不长时反而多一块视觉噪音，让接入方显式打开
+   * @default false
+   */
+  enable?: boolean
+  /**
+   * 条的宽度按什么决定：
+   *
+   * - `'length'`：按消息内容长度（对数缩放）。形状自然，且流式输出时
+   *   最后一根会跟着长出来，自带进度感
+   * - `'role'`：按角色固定。user 短、assistant 长，节奏稳定不抖动
+   * @default 'length'
+   */
+  widthBy?: 'length' | 'role'
+  /** 最短条宽（px） @default 8 */
+  minWidth?: number
+  /** 最长条宽（px） @default 26 */
+  maxWidth?: number
+  /** 条高（px） @default 3 */
+  barHeight?: number
+  /**
+   * 条与条之间的最大间距（px）。
+   * 消息很多时会自动压缩间距（下限 4px），仍放不下则在条组内部滚动
+   * @default 10
+   */
+  maxGap?: number
+  /** 条组最大高度（px），超出后条组内部滚动并自动把当前条带回视野 @default 320 */
+  maxHeight?: number
+  /** 静止态整体透明度；悬停或键盘聚焦时整组显形 @default 0.3 */
+  idleOpacity?: number
+  /** 悬停单根条时是否显示浮层（角色 + 内容摘要） @default true */
+  showTooltip?: boolean
+  /** 点击条是否滚动到对应消息 @default true */
+  clickToScroll?: boolean
+}
+
+/**
  * token 用量。
  *
  * 只能由消费方从接口响应里取（各家字段名不同），组件库不做估算——

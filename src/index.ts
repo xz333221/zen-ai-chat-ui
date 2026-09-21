@@ -19,6 +19,7 @@ export { default as MarkdownRenderer } from './components/MarkdownRenderer/Markd
 export { default as FollowupSuggestions } from './components/FollowupSuggestions/FollowupSuggestions.vue'
 export { default as MessageMeta } from './components/MessageMeta/MessageMeta.vue'
 export { default as ImagePreview } from './components/ImagePreview/ImagePreview.vue'
+export { default as MessageRail } from './components/MessageRail/MessageRail.vue'
 
 // composables
 export {
@@ -70,6 +71,7 @@ export type {
   MessageMetaItem,
   MessageMetaConfig,
   PreviewImage,
+  MessageRailConfig,
   PresetQuestion,
   FollowupInput,
   FollowupConfig,

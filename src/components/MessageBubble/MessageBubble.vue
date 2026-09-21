@@ -4,7 +4,7 @@
     - user：右对齐，主色气泡，头像在右
     - assistant：左对齐，浅色气泡 + 头像 + 名称；含思考块、Markdown 正文、流式光标、附件
   -->
-  <div class="acu-bubble-row" :class="`is-${message.role}`">
+  <div class="acu-bubble-row" :class="`is-${message.role}`" :data-msg-id="message.id">
     <!-- ===== 左侧头像（仅 assistant） ===== -->
     <div v-if="message.role === 'assistant' && showAvatar" class="acu-avatar acu-avatar--left">
       <img v-if="resolvedAssistantAvatar" :src="resolvedAssistantAvatar" alt="" />

@@ -15,6 +15,9 @@
         <button class="demo-btn" @click="toggleMeta">
           元信息：{{ metaModeLabel }}
         </button>
+        <button class="demo-btn" @click="toggleRail">
+          侧边条：{{ railModeLabel }}
+        </button>
         <button class="demo-btn" @click="clearMessages">清空</button>
         <button class="demo-btn" @click="toggleDebug">
           调试：{{ debugMode ? '开' : '关' }}
@@ -41,6 +44,7 @@
         :followup="followup"
         :tool-calls-config="toolCallsConfig"
         :message-meta-config="messageMetaConfig"
+        :message-rail-config="messageRailConfig"
         @send="onSend"
         @select="onSelect"
         @retry="onRetry"
@@ -95,6 +99,7 @@ import {
   type FollowupConfig,
   type ToolCallsConfig,
   type MessageMetaConfig,
+  type MessageRailConfig,
   type TokenUsage
 } from '../src'
 
@@ -126,7 +131,8 @@ const presetQuestions: PresetQuestion[] = [
   { id: 'q4', label: '深色模式怎么用', prompt: '深色模式如何配置？' },
   { id: 'q5', label: '查询北京天气', prompt: '北京今天天气怎么样？' },
   { id: 'q6', label: '多工具调用折叠', prompt: '帮我排查一下项目报错' },
-  { id: 'q7', label: '超长思考滚动', prompt: '帮我分析一下这段超长思考过程' }
+  { id: 'q7', label: '超长思考滚动', prompt: '帮我分析一下这段超长思考过程' },
+  { id: 'q8', label: '多轮对话（侧边条）', prompt: '一次性铺出多轮对话，用来演示左侧那列消息条' }
 ]
 
 // —— 工具调用展示配置：演示「多个调用折叠成组，只展示最新一个」 ——
@@ -152,6 +158,21 @@ const metaModeLabel = computed(
 function toggleMeta() {
   const order: Array<'off' | 'inline' | 'below'> = ['off', 'inline', 'below']
   metaMode.value = order[(order.indexOf(metaMode.value) + 1) % order.length]
+}
+
+// —— 侧边消息条：一条消息一根短横条 —— //
+// 三档循环：关 / 按长度 / 按角色，顺便把两种取宽策略都演示到
+const railMode = ref<'off' | 'length' | 'role'>('length')
+const messageRailConfig = computed<MessageRailConfig>(() => ({
+  enable: railMode.value !== 'off',
+  widthBy: railMode.value === 'role' ? 'role' : 'length'
+}))
+const railModeLabel = computed(
+  () => ({ off: '关', length: '按长度', role: '按角色' })[railMode.value]
+)
+function toggleRail() {
+  const order: Array<'off' | 'length' | 'role'> = ['off', 'length', 'role']
+  railMode.value = order[(order.indexOf(railMode.value) + 1) % order.length]
 }
 
 /**
@@ -302,7 +323,31 @@ async function onSend({ text, files }: { text: string; files: SelectedFile[] }) 
 }
 
 function onSelect(q: PresetQuestion) {
+  if (q.id === 'q8') {
+    seedMultiTurnDemo()
+    return
+  }
   onSend({ text: q.prompt, files: [] })
+}
+
+/**
+ * 演示用：一次性铺出一段多轮对话，好让左侧那列消息条有内容可看。
+ * 问答长度刻意长短不一，用来对比「按长度取宽」与「按角色取宽」两种策略。
+ */
+function seedMultiTurnDemo() {
+  const turns: Array<[string, string]> = [
+    ['组件库支持哪些能力？', '支持流式输出、思考过程折叠、Markdown 渲染（Shiki 代码高亮）、附件上传、工具调用折叠、浅色/深色双主题。'],
+    ['流式怎么接入？', '用 useStreaming() 创建 assistant 消息，逐块 append 即可；组件会自动区分 content 与 reasoning 两个通道。'],
+    ['主题怎么配？', '传 theme="light" | "dark" | "auto" 三选一，auto 跟随系统。底层是 CSS 变量，可以深度定制。'],
+    ['长思考会不会把气泡撑爆？', '不会。思考正文默认有 320px 高度上限，超出后内部滚动，流式输出时还会自动贴底跟随；你手动往上滚之后跟随暂停，滚回底部自动恢复。'],
+    ['附件呢？', '支持点击与拖拽，图片出缩略图、其他文件出卡片，都可以移除；图片还能点击放大预览。'],
+    ['这一条是故意写长的提问，用来验证侧边条在「按长度取宽」时，能不能把长提问也画成明显更长的一根，从而让整段对话的节奏一眼可辨。', '收到。这条回答同样偏长，方便和上面的短回答形成对比 —— 你会看到侧边条里长答案的那几根明显更长。']
+  ]
+  const now = Date.now()
+  messages.value = turns.flatMap(([question, answer], i) => [
+    { id: `seed-u${i}`, role: 'user' as const, content: question, status: 'done' as const, createdAt: now },
+    { id: `seed-a${i}`, role: 'assistant' as const, content: answer, status: 'done' as const, createdAt: now }
+  ])
 }
 
 function onFollowupSelect(q: PresetQuestion, _source: ChatMessage) {

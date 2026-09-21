@@ -27,6 +27,7 @@
         :thinking-config="thinkingConfig"
         :actions-config="actionsConfig"
         :message-meta-config="messageMetaConfig"
+        :message-rail-config="messageRailConfig"
         @retry="(m) => $emit('retry', m)"
         @followup-select="onFollowupSelect"
       />
@@ -57,7 +58,8 @@ import type {
   ToolCallsConfig,
   ThinkingConfig,
   MessageActionsConfig,
-  MessageMetaConfig
+  MessageMetaConfig,
+  MessageRailConfig
 } from '@/types'
 import MessageList from '@/components/MessageList/MessageList.vue'
 import WelcomeScreen from '@/components/WelcomeScreen/WelcomeScreen.vue'
@@ -127,6 +129,12 @@ const props = withDefaults(
      * 与操作栏同排；`position: 'below'` 可改为单独一行。
      */
     messageMetaConfig?: MessageMetaConfig
+    /**
+     * 侧边消息条配置。
+     * 默认关闭。开启后消息列表左边缘会出现一列短横条，一条消息一根，
+     * 用来看清对话结构并点击跳转。
+     */
+    messageRailConfig?: MessageRailConfig
   }>(),
   {
     presetQuestions: () => [],
@@ -145,7 +153,8 @@ const props = withDefaults(
     toolCallsConfig: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
-    messageMetaConfig: undefined
+    messageMetaConfig: undefined,
+    messageRailConfig: undefined
   }
 )
 

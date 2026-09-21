@@ -5,46 +5,58 @@
     - 提供"回到底部"浮动按钮
     - 可选：渲染追问建议（每条 assistant 完成后，调用 followupProvider 或取静态 followupItems）
   -->
-  <div ref="scrollRef" class="acu-message-list" @scroll="handleScroll">
-    <div class="acu-message-list-inner">
-      <template v-for="msg in messages" :key="msg.id">
-        <MessageBubble
-          :message="msg"
-          :assistant-name="assistantName"
-          :assistant-avatar="assistantAvatar"
-          :user-avatar="userAvatar"
-          :show-avatar="showAvatar"
-          :tool-calls-config="toolCallsConfig"
-          :thinking-config="thinkingConfig"
-          :actions-config="actionsConfig"
-          :message-meta-config="messageMetaConfig"
-          :is-last-assistant="msg.id === lastAssistantId"
-          @retry="(m) => $emit('retry', m)"
-        />
-        <!-- 追问建议：assistant 气泡下方独立区域（豆包风格） -->
-        <FollowupSuggestions
-          v-if="shouldRenderFollowup(msg)"
-          :items="followupMap[msg.id]?.items ?? []"
-          :title="followupTitle"
-          :loading="followupMap[msg.id]?.loading ?? false"
-          @select="(q) => $emit('followup-select', q, msg)"
-        />
-      </template>
+  <div class="acu-message-list-wrap">
+    <div ref="scrollRef" class="acu-message-list" @scroll="handleScroll">
+      <div class="acu-message-list-inner">
+        <template v-for="msg in messages" :key="msg.id">
+          <MessageBubble
+            :message="msg"
+            :assistant-name="assistantName"
+            :assistant-avatar="assistantAvatar"
+            :user-avatar="userAvatar"
+            :show-avatar="showAvatar"
+            :tool-calls-config="toolCallsConfig"
+            :thinking-config="thinkingConfig"
+            :actions-config="actionsConfig"
+            :message-meta-config="messageMetaConfig"
+            :is-last-assistant="msg.id === lastAssistantId"
+            @retry="(m) => $emit('retry', m)"
+          />
+          <!-- 追问建议：assistant 气泡下方独立区域（豆包风格） -->
+          <FollowupSuggestions
+            v-if="shouldRenderFollowup(msg)"
+            :items="followupMap[msg.id]?.items ?? []"
+            :title="followupTitle"
+            :loading="followupMap[msg.id]?.loading ?? false"
+            @select="(q) => $emit('followup-select', q, msg)"
+          />
+        </template>
+      </div>
+
+      <transition name="acu-fade">
+        <button
+          v-show="!atBottom && messages.length > 0"
+          type="button"
+          class="acu-scroll-btn"
+          aria-label="回到底部"
+          @click="scrollToBottom(true)"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      </transition>
     </div>
 
-    <transition name="acu-fade">
-      <button
-        v-show="!atBottom && messages.length > 0"
-        type="button"
-        class="acu-scroll-btn"
-        aria-label="回到底部"
-        @click="scrollToBottom(true)"
-      >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-    </transition>
+    <!-- 侧边消息条：一条消息一根短横条，点击可跳转 -->
+    <MessageRail
+      v-if="railEnabled"
+      :messages="messages"
+      :active-id="activeMsgId"
+      :config="messageRailConfig"
+      :assistant-name="assistantName"
+      @select="onRailSelect"
+    />
   </div>
 </template>
 
@@ -57,10 +69,12 @@ import type {
   ToolCallsConfig,
   ThinkingConfig,
   MessageActionsConfig,
-  MessageMetaConfig
+  MessageMetaConfig,
+  MessageRailConfig
 } from '@/types'
 import MessageBubble from '@/components/MessageBubble/MessageBubble.vue'
 import FollowupSuggestions from '@/components/FollowupSuggestions/FollowupSuggestions.vue'
+import MessageRail from '@/components/MessageRail/MessageRail.vue'
 
 interface PerMessageFollowup {
   items: PresetQuestion[]
@@ -84,6 +98,8 @@ const props = withDefaults(
     actionsConfig?: MessageActionsConfig
     /** 元信息行配置（耗时 / token 用量 / 时间） */
     messageMetaConfig?: MessageMetaConfig
+    /** 侧边消息条配置（一条消息一根短横条） */
+    messageRailConfig?: MessageRailConfig
   }>(),
   {
     assistantName: 'AI 助手',
@@ -94,7 +110,8 @@ const props = withDefaults(
     toolCallsConfig: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
-    messageMetaConfig: undefined
+    messageMetaConfig: undefined,
+    messageRailConfig: undefined
   }
 )
 
@@ -253,11 +270,47 @@ const scrollRef = ref<HTMLElement | null>(null)
 const atBottom = ref(true)
 const THRESHOLD = 80
 
+// —— 侧边消息条 —— //
+const railEnabled = computed(() => props.messageRailConfig?.enable === true)
+/** 视口中心所在的消息 id（侧边条据此高亮） */
+const activeMsgId = ref<string | null>(null)
+
+/**
+ * 以消息列表视口的**垂直中心**为基准，找最后一条跨越中心线的消息。
+ * 用 getBoundingClientRect 而不是 offsetTop：前者天然把滚动偏移算进去，
+ * 不用关心 offsetParent 是谁。
+ */
+function computeActiveId() {
+  const el = scrollRef.value
+  if (!el) return
+  const listRect = el.getBoundingClientRect()
+  const midY = listRect.top + listRect.height / 2
+  let best: string | null = null
+  for (const row of el.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+    if (row.getBoundingClientRect().top <= midY) best = row.dataset.msgId ?? null
+    else break
+  }
+  activeMsgId.value = best ?? props.messages[0]?.id ?? null
+}
+
+/** 点击侧边条 → 平滑滚动到对应消息 */
+function onRailSelect(msg: ChatMessage) {
+  const el = scrollRef.value
+  if (!el) return
+  const id = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(msg.id) : msg.id
+  const row = el.querySelector<HTMLElement>(`[data-msg-id="${id}"]`)
+  if (!row) return
+  // offsetTop 相对 offsetParent（.acu-message-list 自身是定位元素），
+  // 正好与 scrollTop 同一基准，不用再叠加 scrollTop
+  el.scrollTo({ top: Math.max(0, row.offsetTop - 16), behavior: 'smooth' })
+}
+
 function handleScroll() {
   const el = scrollRef.value
   if (!el) return
   const distance = el.scrollHeight - el.scrollTop - el.clientHeight
   atBottom.value = distance < THRESHOLD
+  if (railEnabled.value) computeActiveId()
 }
 
 function scrollToBottom(smooth = false) {
@@ -283,16 +336,36 @@ watch(
   () => props.messages.length,
   () => {
     // 新增消息（含首条）直接滚到底
-    nextTick(() => scrollToBottom(false))
+    nextTick(() => {
+      scrollToBottom(false)
+      if (railEnabled.value) computeActiveId()
+    })
   }
 )
 
-onMounted(() => scrollToBottom(false))
+watch(railEnabled, (on) => {
+  if (on) nextTick(() => computeActiveId())
+})
+
+onMounted(() => {
+  scrollToBottom(false)
+  nextTick(() => computeActiveId())
+})
 
 defineExpose({ scrollToBottom })
 </script>
 
 <style lang="scss" scoped>
+/* 侧边条要固定在视口内、不随内容滚动，所以必须在滚动容器**外面**，
+   这一层负责提供定位上下文；放进 .acu-message-list 里会跟着滚走 */
+.acu-message-list-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .acu-message-list {
   position: relative;
   flex: 1;

@@ -12,6 +12,7 @@
 - **运行元信息**：可选在气泡下方展示回答耗时、首字延迟、token 用量（`1.2s · 510ms · ↑26 ↓571`），耗时由 `useStreaming` 自动计时
 - **Markdown 渲染**：基于 markdown-it + Shiki，双主题代码高亮、表格、引用、任务列表，代码块带语言标签与一键复制
 - **附件上传**：点击 / 拖拽，图片缩略图 + 文件卡片，可移除；图片点击可放大预览（灯箱：左右切换 / 键盘导航 / 点背景关闭）
+- **消息侧边条**：消息列表左边缘一列短横条，**一条消息一根**，条宽反映内容长度；静止时低透明不打扰，悬停才显形，可浮层预览、点击跳转
 - **开场白 + 预设问题**：首屏欢迎语 + 可点击的话题卡片
 - **双主题**：浅色 / 深色 / 跟随系统，通过 CSS 变量驱动，可深度定制
 - **样式自洽**：所有组件带 `acu-` 前缀，CSS 变量作用域隔离，不污染宿主
@@ -252,6 +253,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `thinkingConfig`    | `ThinkingConfig`           | -          | 思考块展示配置（详见下方） |
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
 | `messageMetaConfig` | `MessageMetaConfig`        | -          | 耗时 / token 元信息行配置（详见下方） |
+| `messageRailConfig` | `MessageRailConfig`        | -          | 侧边消息条配置（详见下方） |
 
 | Event              | Payload                                                | 说明             |
 | ------------------ | ------------------------------------------------------ | ---------------- |
@@ -263,7 +265,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 
 ### 其他可独立使用的组件
 
-`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
+`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
 
 ## 附件与图片预览
 
@@ -310,6 +312,72 @@ const attachments: ChatAttachment[] = files.map(f => ({
 | `update:index`   | 切换图片时回传 |
 
 > 跑 `npm run dev` 后，把图片拖进输入框或直接发送，点缩略图即可看到灯箱效果。
+
+## 消息侧边条
+
+长对话翻起来容易迷路，这列贴在消息列表左边缘的短横条就是一张"目录"：**一条消息一根条**，条数随对话增长。
+
+![消息侧边条](docs/message-rail.png)
+
+- **条宽 = 消息长度**（默认 `widthBy: 'length'`，对数缩放）：长回答明显更长，一段对话的节奏一眼可辨；流式输出时最后一根会跟着长出来，自带进度感
+- **静止态低透明，悬停才显形**（`opacity: 0.3 → 1`），不读的时候不抢注意力
+- **高亮跟随阅读位置**：以消息列表视口的垂直中心为基准，正在看的那条高亮
+- **悬停出浮层**：显示角色 + 内容摘要，用来定位而不用真去读
+
+![悬停显示浮层](docs/message-rail-tip.png)
+
+- **点击跳转**：平滑滚动到对应消息，落在视口顶部
+- 深色主题自动跟随：
+
+![深色主题下的消息侧边条](docs/message-rail-dark.png)
+
+### `MessageRailConfig` 字段
+
+| 字段            | 类型                  | 默认值      | 说明 |
+| --------------- | --------------------- | ----------- | ---- |
+| `enable`        | `boolean`             | `false`     | 是否启用。默认关闭——会话不长时它属于多余噪音，建议显式打开 |
+| `widthBy`       | `'length' \| 'role'`  | `'length'`  | 条宽依据：按内容长度，或按角色固定（user 短 / assistant 长） |
+| `minWidth`      | `number`              | `8`         | 最短条宽（px） |
+| `maxWidth`      | `number`              | `26`        | 最长条宽（px） |
+| `barHeight`     | `number`              | `3`         | 条高（px） |
+| `maxGap`        | `number`              | `10`        | 条间最大间距（px）。消息多时自动压缩（下限 4px） |
+| `maxHeight`     | `number`              | `320`       | 条组最大高度（px），超出后条组内部滚动并把当前条带回视野 |
+| `idleOpacity`   | `number`              | `0.3`       | 静止态整体透明度；悬停或键盘聚焦时整组显形 |
+| `showTooltip`   | `boolean`             | `true`      | 悬停单根条是否显示浮层 |
+| `clickToScroll` | `boolean`             | `true`      | 点击条是否滚动到对应消息 |
+
+```vue
+<!-- 按长度取宽（默认） -->
+<ChatContainer
+  :messages="messages"
+  :message-rail-config="{ enable: true }"
+  @send="onSend"
+/>
+
+<!-- 按角色取宽：user 短、assistant 长，节奏稳定不抖动 -->
+<ChatContainer
+  :messages="messages"
+  :message-rail-config="{ enable: true, widthBy: 'role' }"
+  @send="onSend"
+/>
+
+<!-- 更细更密，适合消息很多的场景 -->
+<ChatContainer
+  :messages="messages"
+  :message-rail-config="{ enable: true, barHeight: 2, maxGap: 6, idleOpacity: 0.2 }"
+  @send="onSend"
+/>
+```
+
+也可以单独用 `<MessageRail>`（它是 `position: absolute`，宿主需要有定位上下文）：
+
+```vue
+<div style="position: relative">
+  <MessageRail :messages="messages" :active-id="activeId" :config="{ enable: true }" />
+</div>
+```
+
+> 跑 `npm run dev` 后点预设里的「多轮对话（侧边条）」会一次铺出 12 条消息，顶部按钮可在「关 / 按长度 / 按角色」三档之间切换。
 
 ## 工具调用
 
