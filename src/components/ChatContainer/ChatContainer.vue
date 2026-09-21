@@ -35,8 +35,10 @@
       <ChatInput
         :placeholder="placeholder"
         :disabled="disabled"
+        :generating="generating"
         :upload-config="uploadConfig"
         @send="onSend"
+        @stop="$emit('stop')"
       />
     </div>
   </div>
@@ -83,6 +85,14 @@ const props = withDefaults(
     placeholder?: string
     /** 是否禁用输入（生成中） */
     disabled?: boolean
+    /**
+     * 是否正在生成。
+     * 为 true 时输入框右侧按钮由「发送」变为「停止」，点击抛出 `stop` 事件，
+     * 由业务侧负责真正中断请求。
+     * 与 `disabled` 独立：传 `disabled` 会一并禁用输入框；只传 `generating`
+     * 则生成期间仍可继续输入（Enter 不会误发）。
+     */
+    generating?: boolean
     /** 附件上传配置 */
     uploadConfig?: Partial<UploadConfig>
     /**
@@ -121,6 +131,7 @@ const props = withDefaults(
     theme: 'light',
     placeholder: '输入消息，Enter 发送，Shift+Enter 换行',
     disabled: false,
+    generating: false,
     uploadConfig: () => ({}),
     followup: undefined,
     toolCallsConfig: undefined,
@@ -135,6 +146,8 @@ const emit = defineEmits<{
   (e: 'select', question: PresetQuestion): void
   /** 追问被点击；payload 是被点击的 PresetQuestion */
   (e: 'followup-select', question: PresetQuestion, source: ChatMessage): void
+  /** 点击输入框右侧的「停止生成」 */
+  (e: 'stop'): void
 }>()
 
 const listRef = ref<InstanceType<typeof MessageList> | null>(null)

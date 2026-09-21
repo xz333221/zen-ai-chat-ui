@@ -80,11 +80,37 @@
       <button
         type="button"
         class="acu-input-send"
-        :disabled="!canSend || disabled"
-        aria-label="发送"
-        @click="onSend"
+        :class="{ 'is-stop': generating }"
+        :disabled="generating ? false : !canSend || disabled"
+        :aria-label="generating ? '停止生成' : '发送'"
+        :title="generating ? '停止生成' : '发送'"
+        @click="onAction"
       >
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- 生成中：方形「停止」图标；否则：向上箭头「发送」 -->
+        <svg
+          v-if="generating"
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="6" y="6" width="12" height="12" rx="2.5" />
+        </svg>
+        <svg
+          v-else
+          viewBox="0 0 24 24"
+          width="20"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
         </svg>
       </button>
@@ -101,12 +127,19 @@ const props = withDefaults(
   defineProps<{
     placeholder?: string
     disabled?: boolean
+    /**
+     * 是否正在生成。
+     * 为 true 时右侧按钮由「发送」变为「停止」，点击抛出 stop 事件。
+     * 和 disabled 相互独立：想同时禁用输入框就两个都传。
+     */
+    generating?: boolean
     uploadConfig?: Partial<UploadConfig>
     maxLength?: number
   }>(),
   {
     placeholder: '输入消息，Enter 发送，Shift+Enter 换行',
     disabled: false,
+    generating: false,
     uploadConfig: () => ({}),
     maxLength: 4000
   }
@@ -114,6 +147,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'send', payload: { text: string; files: SelectedFile[] }): void
+  (e: 'stop'): void
 }>()
 
 const draft = ref('')
@@ -162,8 +196,20 @@ function autoResize() {
   el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden'
 }
 
+// —— 右侧按钮：生成中 = 停止，否则 = 发送 ——
+function onAction() {
+  if (props.generating) {
+    // 生成中：只发停止信号，不动草稿（用户可能已经写好下一条了）
+    emit('stop')
+    return
+  }
+  onSend()
+}
+
 // —— 发送 ——
 function onSend() {
+  // 生成中即使输入框没被 disabled，也不允许再次发送（Enter 走到这里会被拦下）
+  if (props.generating) return
   if (!canSend.value || props.disabled) return
   const text = draft.value.trim()
   if (!text && pendingFiles.value.length === 0) return
@@ -445,6 +491,20 @@ defineExpose({
     background: var(--acu-surface-2);
     color: var(--acu-text-muted);
     cursor: not-allowed;
+  }
+
+  // 生成中：柔和的危险色，和实心主色的「发送」形成对比，
+  // 又不至于像纯红实心那样抢眼（它只是个中止动作，不是提交）
+  &.is-stop {
+    background: var(--acu-error-soft);
+    color: var(--acu-error);
+
+    &:hover:not(:disabled) {
+      background: var(--acu-error-soft-hover);
+    }
+    &:active:not(:disabled) {
+      background: var(--acu-error-soft-hover);
+    }
   }
 }
 </style>

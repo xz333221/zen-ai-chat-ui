@@ -31,7 +31,10 @@
         assistant-name="AI 助手"
         :theme="theme"
         :disabled="busy"
+        :generating="busy"
+        :placeholder="busy ? '正在生成中…右侧按钮可停止' : '输入消息，Enter 发送，Shift+Enter 换行'"
         :upload-config="{ enabled: true, multiple: true }"
+        @stop="onStop"
         :followup="followup"
         :tool-calls-config="toolCallsConfig"
         @send="onSend"
@@ -193,8 +196,35 @@ function filesToAttachments(files: SelectedFile[]): ChatAttachment[] {
   }))
 }
 
+// —— 停止生成 ——
+// 置位后，正在跑的流式循环会在下一次 sleep 时抛哨兵错误，借此中断。
+// 真实项目里这里应该换成 AbortController.abort() 中断 fetch。
+const ABORT_SENTINEL = '__aborted__'
+let abortRequested = false
+
 function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms))
+  return new Promise<void>((resolve, reject) => {
+    setTimeout(() => {
+      if (abortRequested) reject(new Error(ABORT_SENTINEL))
+      else resolve()
+    }, ms)
+  })
+}
+
+function onStop() {
+  abortRequested = true
+}
+
+/** 统一收尾：用户主动停止按「完成」处理（保留已经产出的内容），只有真错误才标记失败 */
+function settle(msg: ChatMessage, e: unknown) {
+  if (e instanceof Error && e.message === ABORT_SENTINEL) {
+    msg.reasoningStatus = 'done'
+    streaming.finish(msg)
+    const tail = '\n\n*（已停止生成）*'
+    msg.content = msg.content ? msg.content + tail : tail.trim()
+  } else {
+    streaming.fail(msg, (e as Error).message || '模拟失败')
+  }
 }
 
 async function onSend({ text, files }: { text: string; files: SelectedFile[] }) {
@@ -245,6 +275,7 @@ function onRetry(msg: ChatMessage) {
 // —— 演示：超长思考过程（验证正文超高后内部滚动） ——
 async function runLongThinkingDemo(msg: ChatMessage) {
   busy.value = true
+  abortRequested = false
   try {
     await sleep(400)
     msg.status = 'streaming'
@@ -268,7 +299,7 @@ async function runLongThinkingDemo(msg: ChatMessage) {
     }
     streaming.finish(msg)
   } catch (e) {
-    streaming.fail(msg, (e as Error).message || '模拟失败')
+    settle(msg, e)
   } finally {
     busy.value = false
   }
@@ -302,6 +333,7 @@ function buildLongReasoning(): string {
 // —— mock 流式：先输出 reasoning，再输出 content ——
 async function runMockStream(msg: ChatMessage, _userText: string) {
   busy.value = true
+  abortRequested = false
   try {
     await sleep(500)
     msg.status = 'streaming'
@@ -322,7 +354,7 @@ async function runMockStream(msg: ChatMessage, _userText: string) {
     }
     streaming.finish(msg)
   } catch (e) {
-    streaming.fail(msg, (e as Error).message || '模拟失败')
+    settle(msg, e)
   } finally {
     busy.value = false
   }
@@ -331,6 +363,7 @@ async function runMockStream(msg: ChatMessage, _userText: string) {
 // —— 演示：工具调用全流程（reasoning → running → done + 结果 → 正文） ——
 async function runToolCallDemo(msg: ChatMessage) {
   busy.value = true
+  abortRequested = false
   try {
     await sleep(400)
     msg.status = 'streaming'
@@ -383,7 +416,7 @@ async function runToolCallDemo(msg: ChatMessage) {
     }
     streaming.finish(msg)
   } catch (e) {
-    streaming.fail(msg, (e as Error).message || '模拟失败')
+    settle(msg, e)
   } finally {
     busy.value = false
   }
@@ -392,6 +425,7 @@ async function runToolCallDemo(msg: ChatMessage) {
 // —— 演示：一条消息里连续出现大量工具调用（验证默认折叠为「只展示最新一个」） ——
 async function runMultiToolCallDemo(msg: ChatMessage) {
   busy.value = true
+  abortRequested = false
   try {
     await sleep(400)
     msg.status = 'streaming'
@@ -447,7 +481,7 @@ async function runMultiToolCallDemo(msg: ChatMessage) {
     }
     streaming.finish(msg)
   } catch (e) {
-    streaming.fail(msg, (e as Error).message || '模拟失败')
+    settle(msg, e)
   } finally {
     busy.value = false
   }

@@ -5,6 +5,7 @@
 ## 特性
 
 - **流式输出**：逐字渲染 + 光标，支持 `content` / `reasoning` 双通道分片
+- **停止生成**：生成中发送按钮自动变停止按钮，点击抛 `stop` 事件，由业务侧中断请求
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
@@ -85,6 +86,68 @@ async function onSend({ text, files }: { text: string; files: any[] }) {
 
 首个 `content` 到达时，`reasoning` 自动标记为完成。
 
+## 停止生成
+
+生成过程中，输入框右侧的按钮会从「发送」变成「停止」，点击抛出 `stop` 事件，真正的中断由业务侧决定：
+
+![输入框的发送按钮变为停止按钮](docs/input-stop-button.png)
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { ChatContainer } from 'zen-ai-chat-ui'
+
+const busy = ref(false)
+let aborter: AbortController | null = null
+
+async function onSend({ text }: { text: string }) {
+  busy.value = true
+  aborter = new AbortController()
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+      signal: aborter.signal        // ← 关键：把 signal 交给 fetch
+    })
+    // ...流式读取 res.body 并 streaming.append()
+  } finally {
+    busy.value = false
+    aborter = null
+  }
+}
+
+function onStop() {
+  aborter?.abort()                  // ← 真正中断请求
+}
+</script>
+
+<template>
+  <ChatContainer
+    :messages="messages"
+    :disabled="busy"
+    :generating="busy"
+    @send="onSend"
+    @stop="onStop"
+  />
+</template>
+```
+
+组件本身不碰网络，`stop` 只是个信号。用 `fetch` 就传 `AbortController` 的 `signal`；用 SSE / WebSocket / 自研 SDK 就调各自的 `close()` / `cancel()`。
+
+> 中断后组件不会把消息标成错误——已经产出的内容原样保留，由业务侧决定要不要补一句「（已停止生成）」之类的收尾文案。
+
+### `disabled` 和 `generating` 是两件事
+
+| 想要的交互 | 传什么 |
+| --- | --- |
+| 生成中锁住输入框（按钮变停止） | `:disabled="busy" :generating="busy"` |
+| 生成中仍可继续输入下一条（按钮变停止） | 只传 `:generating="busy"` |
+| 只是锁住输入，不要停止按钮 | 只传 `:disabled="busy"` |
+
+第二种模式下 Enter 不会误发（`generating` 期间发送被拦掉），等生成结束再按 Enter 即可。
+
+停止按钮用柔和的危险色：`--acu-error-soft` 作底、`--acu-error` 作图标色，覆盖这两个变量即可换色。
+
 ## 思考过程
 
 assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思考中」区块：流式时自动展开 + 三点动画 + 光标，完成后自动折叠。
@@ -160,6 +223,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `placeholder`       | `string`                   | 见默认     | 输入框占位文字        |
 | `theme`             | `'light' \| 'dark' \| 'auto'` | `'light'`  | 主题                  |
 | `disabled`          | `boolean`                  | `false`    | 禁用输入（生成中）    |
+| `generating`        | `boolean`                  | `false`    | 生成中：发送按钮变停止按钮，点击抛 `stop` |
 | `uploadConfig`      | `Partial<UploadConfig>`    | `{}`       | 附件上传配置          |
 | `followup`          | `FollowupInput`            | -          | 追问建议（详见下方）  |
 | `toolCallsConfig`   | `ToolCallsConfig`          | -          | 工具调用展示配置（详见下方） |
@@ -172,6 +236,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `select`           | `PresetQuestion`                                       | 点击预设问题     |
 | `retry`            | `ChatMessage`                                          | 重试失败消息     |
 | `followup-select`  | `(question: PresetQuestion, source: ChatMessage)`      | 点击追问建议     |
+| `stop`             | -                                                      | 点击输入框右侧「停止生成」 |
 
 ### 其他可独立使用的组件
 
