@@ -7,6 +7,7 @@
 - **流式输出**：逐字渲染 + 光标，支持 `content` / `reasoning` 双通道分片
 - **停止生成**：生成中发送按钮自动变停止按钮，点击抛 `stop` 事件，由业务侧中断请求
 - **向用户提问**：内置提问面板（单选点击即提交 / 多选勾选后提交 / 可选自由输入），适合 agent 中途停下来向用户要一个选择
+- **会话列表**：独立的 `ConversationList`（搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式），和 `ChatContainer` 并排就是完整的对话应用骨架
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
@@ -287,6 +288,62 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 
 > `scrollbar: 'hover'` 为什么不是纯 CSS？因为 Blink 在祖先 `:hover` 状态变化时**不会重算** `::-webkit-scrollbar-thumb` 的样式（`&:hover::-webkit-scrollbar-thumb` 实测无效），所以组件内部用 `mouseenter/mouseleave` 切一个 `is-scrollbar-visible` 类来驱动。这是经验证的实现细节，正常使用无需关心。
 
+## 会话列表
+
+`ConversationList` 把"一段段对话"按列表呈现（新建 / 搜索 / 选中 / 重命名 / 删除），和 `ChatContainer` 并排就是完整的对话应用骨架：
+
+```vue
+<div style="display: flex; height: 100%">
+  <aside style="width: 260px">
+    <ConversationList
+      :items="conversations"
+      :active-id="activeId"
+      :loading="loading"
+      @select="openConversation"
+      @new="createConversation"
+      @rename="renameConversation"
+      @delete="confirmDelete"
+    />
+  </aside>
+  <ChatContainer :messages="messages" @send="onSend" />
+</div>
+```
+
+```ts
+const conversations = ref<ConversationItem[]>([
+  { id: 'c1', title: '组件库能力总览', meta: '今天 · 12 条', badge: 'CLI' },
+  { id: 'c2', title: '流式输出怎么接', meta: '昨天 · 6 条', generatingText: '正在生成中...' }
+])
+```
+
+设计口径：
+
+- **纯展示组件**：列表数据与选中态由消费方持有，组件只抛事件；**删除只抛 `delete`**，确认弹窗由消费方做（组件不内置弹窗）
+- **搜索在组件内过滤**：按 `title` + `searchText`（可放模型名等不展示字段）匹配；传 `:show-search="false"` 可关掉
+- **行内重命名**：点铅笔或双击条目进入编辑，Enter / 失焦提交、Esc 取消；标题没变或为空则不抛事件
+- **时间等文案由消费方格式化**：库不做相对时间与 i18n，`meta` / `generatingText` / `badge` 都是现成字符串（要 i18n 就传 `labels`）
+- **紧凑模式** `compact`：更小行高与字号，适合窄面板 / 侧栏
+- 选中项用主色软底 + 左侧 3px 竖条；操作按钮悬停或聚焦时才显形；`activeId` 变化时当前项自动滚进视野
+
+| Prop         | 类型                          | 默认值  | 说明 |
+| ------------ | ----------------------------- | ------- | ---- |
+| `items`      | `ConversationItem[]`          | -       | 会话列表（必填） |
+| `activeId`   | `string \| null`              | `null`  | 当前选中的会话 id |
+| `loading`    | `boolean`                     | `false` | 加载中（列表为空时显示 loading 文案） |
+| `showSearch` | `boolean`                     | `true`  | 是否展示搜索框 |
+| `showNew`    | `boolean`                     | `true`  | 是否展示新建按钮 |
+| `compact`    | `boolean`                     | `false` | 紧凑模式（窄面板 / 侧栏） |
+| `labels`     | `Partial<ConversationListLabels>` | -   | 文案覆盖（走 i18n 时用） |
+
+| Event    | Payload                                | 说明 |
+| -------- | -------------------------------------- | ---- |
+| `select` | `(id: string, item: ConversationItem)` | 选中某条会话 |
+| `new`    | -                                      | 点击新建 |
+| `rename` | `(id: string, title: string)`          | 提交重命名（仅新标题非空且变化时触发） |
+| `delete` | `(id: string, item: ConversationItem)` | 请求删除（确认弹窗由消费方负责） |
+
+> 跑 `npm run dev` 后，配置面板里「会话列表」一组可以开关列表、切紧凑模式、给首项加"生成中"徽标；点选 / 新建 / 重命名 / 删除都会即时作用在左侧那份演示数据上。
+
 ## 组件 API
 
 ### `<ChatContainer>`
@@ -330,7 +387,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 
 ### 其他可独立使用的组件
 
-`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
+`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`ConversationList`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
 
 ### 内容列宽度（`maxWidth`）
 

@@ -380,6 +380,47 @@ export interface AskUserLabels {
   submit: string
 }
 
+/** 会话列表里的一条会话（见 ConversationList） */
+export interface ConversationItem {
+  /** 唯一 id */
+  id: string
+  /** 标题（为空时组件显示 labels.untitled） */
+  title: string
+  /** 次级展示文案：时间 / 条数等，**已由消费方格式化**（库不做相对时间与 i18n） */
+  meta?: string
+  /**
+   * 生成中徽标文案（如"正在生成中..."）。
+   * 非空时替代 meta 展示，并带一个脉冲圆点。
+   */
+  generatingText?: string
+  /** 角标文案（如来源 'CLI'） */
+  badge?: string
+  /** 参与搜索匹配但不展示（如模型名） */
+  searchText?: string
+}
+
+/** 会话列表可覆盖的文案（宿主项目要走 i18n 时传自己的翻译） */
+export interface ConversationListLabels {
+  /** 新建按钮 */
+  newConversation: string
+  /** 搜索框占位 */
+  searchPlaceholder: string
+  /** 空列表标题 */
+  empty: string
+  /** 空列表补充说明 */
+  emptyHint: string
+  /** 搜索无结果 */
+  noResult: string
+  /** 加载中 */
+  loading: string
+  /** 重命名按钮 title / aria-label */
+  rename: string
+  /** 删除按钮 title / aria-label */
+  delete: string
+  /** 标题为空时的兜底文案 */
+  untitled: string
+}
+
 /**
  * 追问建议配置
  * - 静态：传 `items`，每条 assistant 完成后展示同样的追问

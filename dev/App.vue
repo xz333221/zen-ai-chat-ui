@@ -97,6 +97,19 @@
     </section>
 
     <main class="demo-main">
+      <!-- 会话列表：独立组件，和 ChatContainer 并排就是完整的对话应用骨架 -->
+      <aside v-if="cfg.convShow" class="demo-conv">
+        <ConversationList
+          :items="convItems"
+          :active-id="demoActiveId"
+          :compact="cfg.convCompact"
+          @select="onConvSelect"
+          @new="onConvNew"
+          @rename="onConvRename"
+          @delete="onConvDelete"
+        />
+      </aside>
+
       <ChatContainer
         :messages="messages"
         :preset-questions="presetQuestions"
@@ -165,6 +178,7 @@
 import { ref, reactive, computed } from 'vue'
 import {
   ChatContainer,
+  ConversationList,
   useStreaming,
   resetStreamTiming,
   uid,
@@ -172,6 +186,7 @@ import {
   resolveAvatar,
   type ChatMessage,
   type ChatAttachment,
+  type ConversationItem,
   type PresetQuestion,
   type AskUserQuestion,
   type ThemeMode,
@@ -567,6 +582,16 @@ const SCHEMA: ConfigGroup[] = [
     ]
   },
   {
+    title: '会话列表',
+    prop: 'ConversationList',
+    desc: '独立的会话列表组件：搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式。左侧 260px 容器即窄面板预览。',
+    fields: [
+      { key: 'convShow', label: '显示列表', type: 'bool', hint: '和 ChatContainer 并排' },
+      { key: 'convCompact', label: '紧凑模式', field: 'compact', type: 'bool', hint: '窄面板 / 侧栏用' },
+      { key: 'convGenerating', label: '含生成中徽标', type: 'bool', field: 'generatingText', hint: '列表首项' }
+    ]
+  },
+  {
     title: '运行状态（演示用）',
     prop: 'disabled / generating',
     desc: '手动把容器切到禁用 / 生成中，方便看按钮与输入框的状态差异。',
@@ -666,6 +691,11 @@ const DEFAULTS = {
   questionMultiple: false,
   questionAllowFreeText: true,
 
+  // 会话列表
+  convShow: true,
+  convCompact: false,
+  convGenerating: false,
+
   // 运行状态
   forceDisabled: false,
   forceGenerating: false,
@@ -752,6 +782,66 @@ async function onAnswer(answers: string[]) {
   assistant.status = 'pending'
   messages.value.push(assistant)
   await runMockStream(assistant, answers.join('、'))
+}
+
+// —— 会话列表演示 ——
+// 真实场景里这份列表来自后端；这里用本地数组演示 select / new / rename / delete 四个事件。
+let convSeq = 3
+const demoConversations = ref<ConversationItem[]>([
+  { id: 'c1', title: '组件库能力总览', meta: '今天 · 12 条', badge: 'CLI', searchText: 'claude' },
+  { id: 'c2', title: '流式输出怎么接', meta: '昨天 · 6 条' },
+  { id: 'c3', title: '深色模式配色', meta: '3 天前 · 4 条' }
+])
+const demoActiveId = ref<string | null>('c1')
+
+/** 首项按配置展示"生成中"徽标（generatingText 非空时替代 meta） */
+const convItems = computed<ConversationItem[]>(() =>
+  demoConversations.value.map((item, index) => ({
+    ...item,
+    generatingText: cfg.convGenerating && index === 0 ? '正在生成中...' : undefined
+  }))
+)
+
+/** 切换会话时换一组演示消息，让"切换"看得见 */
+function seedConversation(id: string | null) {
+  const item = demoConversations.value.find((entry) => entry.id === id)
+  const title = item?.title || '会话'
+  messages.value = [
+    { id: uid('u'), role: 'user', content: `（演示）这是「${title}」里的提问`, status: 'done', createdAt: Date.now() },
+    {
+      id: uid('a'),
+      role: 'assistant',
+      content: `这是「${title}」对应的回答。\n\n会话数据由消费方持有，\`ConversationList\` 只负责渲染与抛事件；把它和 \`ChatContainer\` 并排，就是完整的对话应用骨架。`,
+      status: 'done',
+      createdAt: Date.now()
+    }
+  ]
+}
+
+function onConvSelect(id: string) {
+  demoActiveId.value = id
+  seedConversation(id)
+}
+
+function onConvNew() {
+  convSeq += 1
+  const id = `c${convSeq}`
+  demoConversations.value.unshift({ id, title: `新会话 ${convSeq}`, meta: '刚刚 · 0 条' })
+  demoActiveId.value = id
+  seedConversation(id)
+}
+
+function onConvRename(id: string, title: string) {
+  const item = demoConversations.value.find((entry) => entry.id === id)
+  if (item) item.title = title
+}
+
+function onConvDelete(id: string) {
+  demoConversations.value = demoConversations.value.filter((entry) => entry.id !== id)
+  if (demoActiveId.value === id) {
+    demoActiveId.value = demoConversations.value[0]?.id ?? null
+    seedConversation(demoActiveId.value)
+  }
 }
 
 // —— 工具调用展示配置 ——
@@ -1562,11 +1652,29 @@ body {
 .demo-main {
   flex: 1;
   min-height: 0;
+  display: flex;
   border: 1px solid #e7e7ea;
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(24, 24, 27, 0.08);
   background: #fff;
+}
+
+/* 会话列表预览区：260px 宽，顺便预演窄面板下的紧凑表现 */
+.demo-conv {
+  flex-shrink: 0;
+  width: 260px;
+  min-width: 0;
+  padding: 14px 12px 14px 14px;
+  border-right: 1px solid #e7e7ea;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+/* 列表出现时让对话容器让出宽度（ChatContainer 根节点是 .acu-chat） */
+.demo-main > :deep(.acu-chat) {
+  flex: 1;
+  min-width: 0;
 }
 
 /* —— 调试浮动按钮 —— */

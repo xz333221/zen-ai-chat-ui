@@ -21,6 +21,7 @@ export { default as MessageMeta } from './components/MessageMeta/MessageMeta.vue
 export { default as ImagePreview } from './components/ImagePreview/ImagePreview.vue'
 export { default as MessageRail } from './components/MessageRail/MessageRail.vue'
 export { default as AskUserPanel } from './components/AskUserPanel/AskUserPanel.vue'
+export { default as ConversationList } from './components/ConversationList/ConversationList.vue'
 
 // composables
 export {
@@ -76,6 +77,8 @@ export type {
   PresetQuestion,
   AskUserQuestion,
   AskUserLabels,
+  ConversationItem,
+  ConversationListLabels,
   FollowupInput,
   FollowupConfig,
   StreamChunkType,
