@@ -20,6 +20,7 @@ export { default as FollowupSuggestions } from './components/FollowupSuggestions
 export { default as MessageMeta } from './components/MessageMeta/MessageMeta.vue'
 export { default as ImagePreview } from './components/ImagePreview/ImagePreview.vue'
 export { default as MessageRail } from './components/MessageRail/MessageRail.vue'
+export { default as AskUserPanel } from './components/AskUserPanel/AskUserPanel.vue'
 
 // composables
 export {
@@ -73,6 +74,8 @@ export type {
   PreviewImage,
   MessageRailConfig,
   PresetQuestion,
+  AskUserQuestion,
+  AskUserLabels,
   FollowupInput,
   FollowupConfig,
   StreamChunkType,

@@ -369,6 +369,12 @@ defineExpose({
   &.is-disabled {
     opacity: 0.6;
     pointer-events: none;
+
+    // disabled + generating 是文档里支持的组合（锁住输入框、按钮变停止）：
+    // 停止按钮必须还能点，否则生成中就永远停不下来。
+    .acu-input-send.is-stop {
+      pointer-events: auto;
+    }
   }
 }
 

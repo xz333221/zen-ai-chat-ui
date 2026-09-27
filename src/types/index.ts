@@ -350,6 +350,36 @@ export interface PresetQuestion {
 /** 追问建议配置项。两种简写形式：直接传数组，或传完整 config 对象 */
 export type FollowupInput = PresetQuestion[] | FollowupConfig
 
+/** 向用户提问（智能体 ask_user 一类的交互，见 AskUserPanel） */
+export interface AskUserQuestion {
+  /** 问题正文 */
+  question: string
+  /** 选项列表；为空表示只能自由输入 */
+  options?: string[]
+  /**
+   * 是否多选。
+   * 多选时需要勾选后点「提交回答」；单选点选项即提交。
+   * @default false
+   */
+  multiple?: boolean
+  /**
+   * 除选项外是否还允许自由输入。
+   * 选项为空时恒为 true（否则用户无内容可答）。
+   * @default true
+   */
+  allowFreeText?: boolean
+}
+
+/** 提问面板可覆盖的文案（宿主项目要走 i18n 时传自己的翻译） */
+export interface AskUserLabels {
+  /** 面板标题 */
+  title: string
+  /** 自由输入框占位 */
+  placeholder: string
+  /** 提交按钮文案 */
+  submit: string
+}
+
 /**
  * 追问建议配置
  * - 静态：传 `items`，每条 assistant 完成后展示同样的追问

@@ -6,6 +6,7 @@
 
 - **流式输出**：逐字渲染 + 光标，支持 `content` / `reasoning` 双通道分片
 - **停止生成**：生成中发送按钮自动变停止按钮，点击抛 `stop` 事件，由业务侧中断请求
+- **向用户提问**：内置提问面板（单选点击即提交 / 多选勾选后提交 / 可选自由输入），适合 agent 中途停下来向用户要一个选择
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
@@ -153,6 +154,62 @@ function onStop() {
 
 停止按钮用柔和的危险色：`--acu-error-soft` 作底、`--acu-error` 作图标色，覆盖这两个变量即可换色。
 
+## 向用户提问
+
+智能体中途需要用户拍板（`ask_user` 一类）时，把问题交给 `ChatContainer` 的 `question`，面板会出现在**消息列表与输入框之间**：
+
+```vue
+<ChatContainer
+  :messages="messages"
+  :question="pendingQuestion"          <!-- null 时不渲染 -->
+  :question-submitting="submitting"    <!-- 提交请求飞行中：整体禁用，防重复提交 -->
+  @answer="onAnswer"
+/>
+```
+
+```ts
+const pendingQuestion = ref<AskUserQuestion | null>({
+  question: '你想让我接下来做点什么？',
+  options: ['看看最近有哪些 Git 项目', '随便聊两句', '检查某个项目的代码'],
+  multiple: false,        // 默认 false
+  allowFreeText: true     // 默认 true；选项为空时恒为 true
+})
+
+// 单选 1 项；多选 N 项；自由输入的内容作为额外一项
+function onAnswer(answers: string[]) {
+  submit(answers).finally(() => { pendingQuestion.value = null })
+}
+```
+
+交互约定：
+
+- **单选**：点选项即提交（`answers = [所选选项]`），不必再点按钮
+- **多选**：勾选若干项后点「提交回答」；自由输入的内容作为**额外一项**并入
+- **提交中**：传 `questionSubmitting`，面板整体禁用；组件内部还有一层闩锁，防止请求回流前连点导致重复提交
+- **失败重试**：`questionSubmitting` 从 `true` 回到 `false` 时闩锁自动放开，面板可再次提交
+- **换问题**：`question` 变化时自动清空上一轮的勾选与输入
+
+文案默认中文（`等待你的回答` / `输入回答` / `提交回答`），需要 i18n 就传 `questionLabels`：
+
+```vue
+<ChatContainer
+  :messages="messages"
+  :question="pendingQuestion"
+  :question-labels="{ title: t('waiting'), placeholder: t('inputAnswer'), submit: t('submit') }"
+/>
+```
+
+也可以单独用 `<AskUserPanel>`（自己摆放位置与动效）：
+
+```vue
+<AskUserPanel
+  question="选一个目标分支"
+  :options="['main', 'develop']"
+  :submitting="submitting"
+  @answer="onAnswer"
+/>
+```
+
 ## 思考过程
 
 assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思考中」区块：流式时自动展开 + 三点动画 + 光标，完成后自动折叠。
@@ -250,6 +307,9 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `theme`             | `'light' \| 'dark' \| 'auto'` | `'light'`  | 主题                  |
 | `disabled`          | `boolean`                  | `false`    | 禁用输入（生成中）    |
 | `generating`        | `boolean`                  | `false`    | 生成中：发送按钮变停止按钮，点击抛 `stop` |
+| `question`          | `AskUserQuestion \| null`  | `null`     | 向用户提问：非空时在消息列表与输入框之间渲染提问面板（详见上方） |
+| `questionSubmitting`| `boolean`                  | `false`    | 提问面板是否正在提交（请求飞行中，面板整体禁用） |
+| `questionLabels`    | `Partial<AskUserLabels>`   | -          | 提问面板文案覆盖（走 i18n 时用） |
 | `uploadConfig`      | `Partial<UploadConfig>`    | `{}`       | 附件上传配置          |
 | `followup`          | `FollowupInput`            | -          | 追问建议（详见下方）  |
 | `toolCallsConfig`   | `ToolCallsConfig`          | -          | 工具调用展示配置（详见下方） |
@@ -266,10 +326,11 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `retry`            | `ChatMessage`                                          | 重试失败消息     |
 | `followup-select`  | `(question: PresetQuestion, source: ChatMessage)`      | 点击追问建议     |
 | `stop`             | -                                                      | 点击输入框右侧「停止生成」 |
+| `answer`           | `string[]`                                             | 用户回答了提问面板（单选 1 项、多选 N 项，自由输入作为额外一项） |
 
 ### 其他可独立使用的组件
 
-`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
+`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
 
 ### 内容列宽度（`maxWidth`）
 

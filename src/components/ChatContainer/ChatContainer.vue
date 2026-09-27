@@ -38,6 +38,21 @@
       />
     </div>
 
+    <!-- 提问面板：消息列表与输入框之间（传 question 才渲染） -->
+    <transition name="acu-collapse">
+      <div v-if="question" class="acu-chat-question">
+        <AskUserPanel
+          :question="question.question"
+          :options="question.options"
+          :multiple="question.multiple"
+          :allow-free-text="question.allowFreeText"
+          :submitting="questionSubmitting"
+          :labels="questionLabels"
+          @answer="(answers) => $emit('answer', answers)"
+        />
+      </div>
+    </transition>
+
     <div class="acu-chat-footer">
       <ChatInput
         :placeholder="placeholder"
@@ -64,11 +79,14 @@ import type {
   ThinkingConfig,
   MessageActionsConfig,
   MessageMetaConfig,
-  MessageRailConfig
+  MessageRailConfig,
+  AskUserQuestion,
+  AskUserLabels
 } from '@/types'
 import MessageList from '@/components/MessageList/MessageList.vue'
 import WelcomeScreen from '@/components/WelcomeScreen/WelcomeScreen.vue'
 import ChatInput from '@/components/ChatInput/ChatInput.vue'
+import AskUserPanel from '@/components/AskUserPanel/AskUserPanel.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -102,6 +120,20 @@ const props = withDefaults(
      * 则生成期间仍可继续输入（Enter 不会误发）。
      */
     generating?: boolean
+    /**
+     * 向用户提问（智能体 `ask_user` 一类的交互）。
+     * 传非空对象时，在消息列表与输入框之间渲染提问面板；
+     * 用户提交后抛出 `answer` 事件（单选 1 项；多选 N 项；自由输入作为额外一项）。
+     */
+    question?: AskUserQuestion | null
+    /**
+     * 提问面板是否正在提交答案（请求飞行中）。
+     * 为 true 时面板整体禁用，避免重复提交。
+     * @default false
+     */
+    questionSubmitting?: boolean
+    /** 提问面板文案覆盖（宿主项目要走 i18n 时传自己的翻译） */
+    questionLabels?: Partial<AskUserLabels>
     /** 附件上传配置 */
     uploadConfig?: Partial<UploadConfig>
     /**
@@ -164,6 +196,9 @@ const props = withDefaults(
     placeholder: '输入消息，Enter 发送，Shift+Enter 换行',
     disabled: false,
     generating: false,
+    question: null,
+    questionSubmitting: false,
+    questionLabels: undefined,
     uploadConfig: () => ({}),
     followup: undefined,
     toolCallsConfig: undefined,
@@ -188,6 +223,8 @@ const emit = defineEmits<{
   (e: 'followup-select', question: PresetQuestion, source: ChatMessage): void
   /** 点击输入框右侧的「停止生成」 */
   (e: 'stop'): void
+  /** 用户回答了提问面板：单选 1 项、多选 N 项，自由输入作为额外一项 */
+  (e: 'answer', answers: string[]): void
 }>()
 
 const listRef = ref<InstanceType<typeof MessageList> | null>(null)
@@ -259,5 +296,26 @@ defineExpose({
   flex-shrink: 0;
   padding: var(--acu-space-3) var(--acu-space-4) var(--acu-space-4);
   background: linear-gradient(to top, var(--acu-bg) 70%, transparent);
+}
+
+// 提问面板：与消息列、输入框同宽同列
+.acu-chat-question {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: var(--acu-max-width);
+  margin: 0 auto;
+  padding: 0 var(--acu-space-4);
+}
+
+// 提问面板出现 / 消失过渡（与 ThinkingBlock 的 acu-collapse 同一套节奏）
+.acu-collapse-enter-active,
+.acu-collapse-leave-active {
+  transition: opacity var(--acu-duration) var(--acu-easing),
+    transform var(--acu-duration) var(--acu-easing);
+}
+.acu-collapse-enter-from,
+.acu-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

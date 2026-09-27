@@ -110,6 +110,8 @@
         :placeholder="inputPlaceholder"
         :disabled="busy || cfg.forceDisabled"
         :generating="busy || cfg.forceGenerating"
+        :question="demoQuestion"
+        :question-submitting="questionSubmitting"
         :upload-config="uploadConfig"
         :followup="followup"
         :tool-calls-config="toolCallsConfig"
@@ -123,6 +125,7 @@
         @select="onSelect"
         @retry="onRetry"
         @followup-select="onFollowupSelect"
+        @answer="onAnswer"
       />
     </main>
 
@@ -170,6 +173,7 @@ import {
   type ChatMessage,
   type ChatAttachment,
   type PresetQuestion,
+  type AskUserQuestion,
   type ThemeMode,
   type SelectedFile,
   type FollowupConfig,
@@ -552,6 +556,17 @@ const SCHEMA: ConfigGroup[] = [
     ]
   },
   {
+    title: '提问面板',
+    prop: 'question / questionSubmitting / questionLabels',
+    desc: '智能体中途向用户提问：单选点选项即提交，多选勾选后点「提交回答」，可选自由输入。',
+    fields: [
+      { key: 'questionShow', label: '显示提问面板', type: 'bool', hint: '面板出现在消息列表与输入框之间' },
+      { key: 'questionText', label: '问题文案', type: 'text', hint: 'question.question' },
+      { key: 'questionMultiple', label: '多选', type: 'bool', hint: '默认 false：单选点即提交' },
+      { key: 'questionAllowFreeText', label: '允许自由输入', type: 'bool', hint: '默认 true' }
+    ]
+  },
+  {
     title: '运行状态（演示用）',
     prop: 'disabled / generating',
     desc: '手动把容器切到禁用 / 生成中，方便看按钮与输入框的状态差异。',
@@ -645,6 +660,12 @@ const DEFAULTS = {
   followupDuringStreaming: false,
   followupAutoSend: true,
 
+  // 提问面板
+  questionShow: false,
+  questionText: '你想让我接下来做点什么？',
+  questionMultiple: false,
+  questionAllowFreeText: true,
+
   // 运行状态
   forceDisabled: false,
   forceGenerating: false,
@@ -693,8 +714,45 @@ const presetQuestions: PresetQuestion[] = [
   { id: 'q5', label: '查询北京天气', prompt: '北京今天天气怎么样？' },
   { id: 'q6', label: '多工具调用折叠', prompt: '帮我排查一下项目报错' },
   { id: 'q7', label: '超长思考滚动', prompt: '帮我分析一下这段超长思考过程' },
-  { id: 'q8', label: '多轮对话（侧边条）', prompt: '一次性铺出多轮对话，用来演示左侧那列消息条' }
+  { id: 'q8', label: '多轮对话（侧边条）', prompt: '一次性铺出多轮对话，用来演示左侧那列消息条' },
+  { id: 'q9', label: '向用户提问（ask_user）', prompt: '演示提问面板：单选 / 多选 / 自由输入' }
 ]
+
+// —— 提问面板演示 ——
+// 真实的智能体场景里，这个对象来自后端 ask_user 事件；提交则是把答案发回后端。
+const DEMO_QUESTION_OPTIONS = ['看看本机最近有哪些 Git 项目', '随便聊两句，就测试这个面板', '帮我检查某个项目的代码']
+const questionSubmitting = ref(false)
+
+const demoQuestion = computed<AskUserQuestion | null>(() =>
+  cfg.questionShow
+    ? {
+        question: cfg.questionText,
+        options: DEMO_QUESTION_OPTIONS,
+        multiple: cfg.questionMultiple,
+        allowFreeText: cfg.questionAllowFreeText
+      }
+    : null
+)
+
+async function onAnswer(answers: string[]) {
+  questionSubmitting.value = true
+  // 模拟把答案提交给后端的耗时
+  await new Promise((r) => setTimeout(r, 600))
+  questionSubmitting.value = false
+  cfg.questionShow = false
+
+  messages.value.push({
+    id: uid('u'),
+    role: 'user',
+    content: `我的回答：${answers.join(' / ')}`,
+    status: 'done',
+    createdAt: Date.now()
+  })
+  const assistant = streaming.createAssistant(uid('a'))
+  assistant.status = 'pending'
+  messages.value.push(assistant)
+  await runMockStream(assistant, answers.join('、'))
+}
 
 // —— 工具调用展示配置 ——
 const toolCallsConfig = computed<ToolCallsConfig>(() => ({
@@ -916,6 +974,11 @@ async function onSend({ text, files }: { text: string; files: SelectedFile[] }) 
 function onSelect(q: PresetQuestion) {
   if (q.id === 'q8') {
     seedMultiTurnDemo()
+    return
+  }
+  if (q.id === 'q9') {
+    // 提问面板演示：直接打开面板（真实场景由后端 ask_user 事件触发）
+    cfg.questionShow = true
     return
   }
   onSend({ text: q.prompt, files: [] })
