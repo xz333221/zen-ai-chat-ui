@@ -49,10 +49,10 @@ const props = withDefaults(
     /**
      * 内容区最大宽度。数字按 px 处理，字符串原样使用（`'900px'` / `'60ch'` / `'100%'`）。
      *
-     * 默认 `'100%'`——跟着容器走。窄容器（如移动端）看不出区别，
-     * 但大屏下如果卡在 640px，开场白会缩在中间一小块、两侧大片留白，
-     * 和同样撑满的消息列表/输入框对不齐。
-     * @default '100%'
+     * 默认 `'var(--acu-max-width)'`——跟消息列表、输入框同一列（默认
+     * `min(100%, 920px)`：窄容器跟随容器，宽屏截断居中）。用令牌而不是写死
+     * 数值，`ChatContainer` 传进来的 `maxWidth` 会自动生效，三列不会各走各的。
+     * @default 'var(--acu-max-width)'
      */
     maxWidth?: string | number
   }>(),
@@ -60,7 +60,7 @@ const props = withDefaults(
     title: '你好，有什么可以帮你？',
     description: '试着问我任何问题，或选择下方的话题开始对话。',
     questions: () => [],
-    maxWidth: '100%'
+    maxWidth: 'var(--acu-max-width)'
   }
 )
 
@@ -80,14 +80,19 @@ defineEmits<{
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--acu-space-8) var(--acu-space-4);
+  // 左右 padding 交给 .acu-welcome-inner：大屏下内容列被 --acu-max-width 截断
+  // 居中后，padding 留在外层会让开场白比消息列表/输入框宽出两个 padding，
+  // 三列左边缘差 16px，一眼看得出来对不齐
+  padding: var(--acu-space-8) 0;
   min-height: 0;
 }
 
 .acu-welcome-inner {
   width: 100%;
-  // max-width 由 maxWidth prop 通过 inline style 提供（默认 100%），
+  // max-width 由 maxWidth prop 通过 inline style 提供（默认 var(--acu-max-width)），
   // 写死在这里会盖不住 inline 之前的默认值——统一交给 prop 一处管理
+  box-sizing: border-box;
+  padding: 0 var(--acu-space-4);
   text-align: center;
   display: flex;
   flex-direction: column;

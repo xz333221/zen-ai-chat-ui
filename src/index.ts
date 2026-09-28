@@ -31,6 +31,7 @@ export {
   extractThinkSegments
 } from './composables/useMarkdown'
 export { useStreaming, resetStreamTiming } from './composables/useStreaming'
+export { useResolvedTheme } from './composables/useResolvedTheme'
 
 // 工具
 export { formatFileSize, isImageType, uid, formatDuration, formatTokens, formatClock } from './utils/format'

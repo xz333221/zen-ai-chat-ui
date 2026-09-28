@@ -132,7 +132,12 @@
   --acu-easing: cubic-bezier(0.4, 0, 0.2, 1);
 
   // —— 布局 ——
-  --acu-max-width: 768px;
+  // 内容列宽度上限：开场白 / 消息列表 / 输入框共用同一列。
+  // 用 min() 而不是写死 px —— 窄容器（移动端、侧栏面板）下 100% 生效，
+  // 与大屏上限完全一致；宽屏下才截到 920px，否则一行文字横跨两米、
+  // 推荐卡片的箭头飘在屏幕那头，整块看着「空」。
+  // ChatContainer 的 maxWidth prop 会以 inline 变量覆盖本值（显式传参优先）。
+  --acu-max-width: min(100%, 920px);
   --acu-avatar-size: 32px;
 }
 

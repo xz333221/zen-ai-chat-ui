@@ -7,7 +7,8 @@
 - **流式输出**：逐字渲染 + 光标，支持 `content` / `reasoning` 双通道分片
 - **停止生成**：生成中发送按钮自动变停止按钮，点击抛 `stop` 事件，由业务侧中断请求
 - **向用户提问**：内置提问面板（单选点击即提交 / 多选勾选后提交 / 可选自由输入），适合 agent 中途停下来向用户要一个选择
-- **会话列表**：独立的 `ConversationList`（搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式），和 `ChatContainer` 并排就是完整的对话应用骨架
+- **会话列表**：独立的 `ConversationList`（搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式），和 `ChatContainer` 并排就是完整的对话应用骨架；窄到放不下两列时，演示页会自动切成「列表页 ↔ 对话页」两页，输入框则用 `showInput=false` 拆出来常驻在卡片最下方，**列表页也有一条**（VSCode 那种感觉）
+- **输入框可拆**：`ChatContainer` 传 `showInput=false` 就不渲染内置输入框，改由宿主用导出的 `ChatInput` 自己摆位；整个应用只挂一个实例，切页时草稿与待发附件都还在
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
@@ -16,7 +17,7 @@
 - **附件上传**：点击 / 拖拽，图片缩略图 + 文件卡片，可移除；图片点击可放大预览（灯箱：左右切换 / 键盘导航 / 点背景关闭）
 - **消息侧边条**：消息列表左边缘一列短横条，**一轮问答一根**，条宽反映这一轮的篇幅；静止时低透明不打扰，悬停浮出「提问 + 回答摘要」，点击跳到该轮提问
 - **开场白 + 预设问题**：首屏欢迎语 + 可点击的话题卡片
-- **内容列宽度可配**：开场白、消息列表、输入框共享同一个 `maxWidth`（默认 `100%` 跟随容器），不会再出现「开场白 640 / 消息 768」那种对不齐
+- **内容列宽度可配**：开场白、消息列表、输入框共享同一个 `maxWidth`。默认 `min(100%, 920px)`——窄容器跟随容器，宽屏截断居中，不会再出现「开场白 640 / 消息 768」那种对不齐，也不会在 4K 屏上把一行文字拉成两米宽
 - **双主题**：浅色 / 深色 / 跟随系统，通过 CSS 变量驱动，可深度定制
 - **样式自洽**：所有组件带 `acu-` 前缀，CSS 变量作用域隔离，不污染宿主
 - **令牌收敛**：字号 / 间距 / 圆角 / 动效 / 状态色全部走 `--acu-*` 令牌，组件内不写死色值与尺寸；正文轮次间距、气泡列宽、过渡节奏都能一处改全局生效
@@ -344,6 +345,91 @@ const conversations = ref<ConversationItem[]>([
 
 > 跑 `npm run dev` 后，配置面板里「会话列表」一组可以开关列表、切紧凑模式、给首项加"生成中"徽标；点选 / 新建 / 重命名 / 删除都会即时作用在左侧那份演示数据上。
 
+### 窄屏怎么办：分两页，而不是硬挤
+
+`ConversationList` 是纯展示组件，**本身不做响应式**——并排还是分页是宿主的版面决策，库不该替宿主定断点。但窄屏下别把 260px 的侧栏硬塞进 400px 的容器：挤到最后两列都没法看。推荐「列表页 ↔ 对话页」两个页面，**输入框拆出来常驻在底部**（VSCode 那种感觉：换的是中间区，输入框一直在）：
+
+```vue
+<template>
+  <!--
+    主题 / 盒模型 / 列宽都挂在这一层：它是拆出去的输入框能蹭到的最近祖先。
+    acu-root 是库的组件根类，盒模型重置（box-sizing: border-box）限定在它子树里。
+  -->
+  <div
+    class="chat-app acu-root"
+    :data-theme="resolvedTheme"
+    :style="{ '--acu-max-width': maxWidth }"
+  >
+    <!-- 分页时顶部多一条页栏：返回按钮 + 当前页标题 -->
+    <div v-if="split" class="pagebar">
+      <button v-if="pane === 'chat'" @click="pane = 'list'">← 会话列表</button>
+      <span>{{ pane === 'list' ? '会话列表' : activeTitle }}</span>
+    </div>
+
+    <!-- 中间区：列表页 / 对话页二选一 -->
+    <div class="stage">
+      <aside v-if="!split || pane === 'list'">
+        <ConversationList :items="conversations" :active-id="activeId" @select="onSelect" @new="onNew" />
+      </aside>
+      <!-- 切页用 v-show：对话的滚动位置、流式中的消息要留着 -->
+      <!-- show-input=false：输入框不在这里，拆到下面常驻 -->
+      <ChatContainer
+        v-show="!split || pane === 'chat'"
+        :show-input="false"
+        :messages="messages"
+        :theme="theme"
+      />
+    </div>
+
+    <!-- 输入框常驻最下方：对话页、会话列表页都有 -->
+    <div class="composer">
+      <ChatInput :generating="busy" @send="onSend" @stop="onStop" />
+    </div>
+  </div>
+</template>
+```
+
+```ts
+const pane = ref<'list' | 'chat'>('list')
+// 判据用「容器宽度」而不是视口宽度：宿主页面的 padding、浏览器缩放变了都不用跟着改阈值
+const split = computed(() => cfg.showList && containerWidth.value - 260 < 560)
+watch(split, (now) => { if (now) pane.value = 'list' })   // 跨过阈值时落在列表页
+
+function onSelect(id: string) { activeId.value = id; load(id); pane.value = 'chat' }
+// 列表页也能发消息（输入框常驻），发完得跳到对话页，否则自己刚发的那条看不见
+function onSend(p: { text: string; files: SelectedFile[] }) { pane.value = 'chat'; /* ... */ }
+
+// 输入框已经不在 ChatContainer 里，'auto' 得自己解析一次，否则它会一路浅色
+const resolvedTheme = useResolvedTheme(() => cfg.theme)
+```
+
+```css
+/* 想和内置的那条长得一样，留白对齐 .acu-chat-footer */
+.composer {
+  flex-shrink: 0;
+  padding: var(--acu-space-3) var(--acu-space-4) var(--acu-space-4);
+  background: linear-gradient(to top, var(--acu-bg) 70%, transparent);
+}
+```
+
+- **阈值看容器，不看视口**：`260（列表占用）+ 560（对话列的最小可用宽度）` 就是分界点。视口宽度只是近似值，容器宽度才是对话列真正拿到的。
+- **切页用 `v-show`，列表用 `v-if`**：`ChatContainer` 一旦销毁，滚动位置、流式中的消息、附件预览全丢；`ConversationList` 重建反而正好（搜索框、滚动位置重置回干净状态）。
+- **选中会话后自动进对话页**：`select` / `new` 里顺手把 `pane` 切到 `'chat'`，省一次点击。
+- **只有列表真的在展示时才可能分页**：宿主关掉列表（`cfg.showList === false`）就没有「两页」可言，对话直接铺满。
+- **`ChatInput` 全局只挂一个**：拆出来之后它不再跟着 `ChatContainer` 销毁重建，`列表页 ↔ 对话页` 来回切时草稿和待发附件都还在。
+
+拆出输入框后有三件事必须自己接上，否则会出现「消息深色、输入框浅色」「两列左边缘差 16px」「输入框横着溢出父容器」：
+
+| 要接的东西 | 怎么接 | 不接会怎样 |
+| ---------- | ------ | ---------- |
+| 主题 | 在共同祖先上挂 `:data-theme`（`'auto'` 用 `useResolvedTheme` 解析成 `'light' \| 'dark'`） | 拆出去的那层不在 `ChatContainer` 的 DOM 里，拿不到它解析好的主题；`'auto'` 时一路浅色 |
+| 列宽 | 在共同祖先上写 `--acu-max-width`（`ChatContainer` 会继承，不用再传 `maxWidth` prop；想只改对话区就单独传 prop，两者同值时不会打架） | 输入框和消息列各走各的，左边缘对不齐 |
+| 盒模型 | 共同祖先加 `acu-root` 类 | 库把 `box-sizing: border-box` 重置限定在 `.acu-root` 子树里（不污染宿主）。`ChatInput` 根节点是 `div`，缺了这层会退回 `content-box`，`width: 100%` 变成「100% + 左右 padding」，横着溢出父容器（`button` / `textarea` 有浏览器 UA 的 border-box 兜着，所以只有输入框会露馅） |
+
+跟输入框一起「搬家」的还有这几个 prop / 事件：`placeholder`、`disabled`、`generating`、`send`、`stop`——拆出去后它们都归 `ChatInput`，`ChatContainer` 那边不用再传（`showInput=false` 时它也不会再读）。另外提问面板（`question`）仍留在 `ChatContainer` 里，也就是永远在常驻输入框的上方。
+
+演示页就是这么做的：`main` 宽度减去列表宽度不足 560px 时自动分页（约等于视口 852px），用 `ResizeObserver` 量容器，所以缩放、改 padding 都会自动跟上；输入框始终在卡片最下方，列表页也在。
+
 ## 组件 API
 
 ### `<ChatContainer>`
@@ -364,6 +450,7 @@ const conversations = ref<ConversationItem[]>([
 | `theme`             | `'light' \| 'dark' \| 'auto'` | `'light'`  | 主题                  |
 | `disabled`          | `boolean`                  | `false`    | 禁用输入（生成中）    |
 | `generating`        | `boolean`                  | `false`    | 生成中：发送按钮变停止按钮，点击抛 `stop` |
+| `showInput`         | `boolean`                  | `true`     | 是否渲染内置输入框。传 `false` 时输入框由宿主自己摆（配合导出的 `ChatInput`），见「窄屏怎么办」 |
 | `question`          | `AskUserQuestion \| null`  | `null`     | 向用户提问：非空时在消息列表与输入框之间渲染提问面板（详见上方） |
 | `questionSubmitting`| `boolean`                  | `false`    | 提问面板是否正在提交（请求飞行中，面板整体禁用） |
 | `questionLabels`    | `Partial<AskUserLabels>`   | -          | 提问面板文案覆盖（走 i18n 时用） |
@@ -374,7 +461,7 @@ const conversations = ref<ConversationItem[]>([
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
 | `messageMetaConfig` | `MessageMetaConfig`        | -          | 耗时 / token 元信息行配置（详见下方） |
 | `messageRailConfig` | `MessageRailConfig`        | -          | 侧边消息条配置（详见下方） |
-| `maxWidth`          | `string \| number`         | `'100%'`   | 内容列最大宽度，一处管开场白 / 消息列表 / 输入框（详见下方） |
+| `maxWidth`          | `string \| number`         | -          | 内容列最大宽度，一处管开场白 / 消息列表 / 输入框；不传走 `--acu-max-width` 令牌（`min(100%, 920px)`）（详见下方） |
 
 | Event              | Payload                                                | 说明             |
 | ------------------ | ------------------------------------------------------ | ---------------- |
@@ -389,20 +476,38 @@ const conversations = ref<ConversationItem[]>([
 
 `MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`ConversationList`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
 
-### 内容列宽度（`maxWidth`）
+单独用时记得给它们套一层 `.acu-root`：盒模型重置（`box-sizing: border-box`）和主题令牌都挂在这个类下面，库靠它做到「组件内样式自洽、不污染宿主」。少了这层，`div` 类的根节点会退回 `content-box`（`width: 100%` + padding 就横着溢出），深色主题也不会生效。
+
+composable 也一并导出：`useStreaming`（流式接法见「流式输出」）、`useResolvedTheme`（把 `'auto'` 解析成 `'light' | 'dark'`，拆出输入框时要用，见「窄屏怎么办」）、`useMarkdown`。
+
+### 内容列宽度与大屏适配（`maxWidth`）
 
 开场白的内容区、消息列表、输入框在视觉上是**同一列**，三者必须共用同一个上限。通过 `ChatContainer` 的 `maxWidth` 一处配置：
 
 ```vue
-<ChatContainer :max-width="900" :messages="messages" />   <!-- 数字按 px -->
-<ChatContainer max-width="60ch" :messages="messages" />   <!-- 字符串原样 -->
-<ChatContainer :messages="messages" />                     <!-- 默认 '100%'，跟随容器 -->
+<ChatContainer :messages="messages" />                     <!-- 不传：走令牌，默认 min(100%, 920px) -->
+<ChatContainer :max-width="900" :messages="messages" />    <!-- 数字按 px -->
+<ChatContainer max-width="60ch" :messages="messages" />    <!-- 字符串原样 -->
+<ChatContainer max-width="100%" :messages="messages" />    <!-- 显式铺满容器 -->
 ```
 
-- **默认 `'100%'`**：不再有内置上限，容器多宽内容就多宽。窄容器（移动端）无差别；大屏下铺满，不会缩在中间一小块、两侧大片留白。
+- **默认 `min(100%, 920px)`**：窄容器（移动端、侧栏面板）下 `100%` 生效，与容器一致；宽屏下截到 920px 居中。
+  既不铺满整个 4K 屏（一行文字横跨两米、推荐卡片的箭头飘到屏幕那头，整块看着「空」），也不至于缩在中间一小块。
 - **数字**按 px 处理（`:max-width="900"` 与 `max-width="900px"` 等价）；字符串原样透传，`'60ch'`、`'72rem'` 也能用。
-- 实现上是根节点注入一个 `--acu-max-width` CSS 变量，`WelcomeScreen` / `MessageList` / `ChatInput` 同时消费它。视觉上确实是同一列，就不会再出现列宽打架。
-- 注意开场白外层 `.acu-welcome` 自带左右 padding，所以 `100%` 下开场白内容会比消息列表窄两个 padding（这是既有的内缩留白，不是上限）；设成具体值时三列严格等宽。
+- 实现上是根节点注入一个 `--acu-max-width` CSS 变量，`WelcomeScreen` / `MessageList` / `ChatInput` / `MessageRail` 同时消费它。
+  视觉上确实是同一列，就不会再出现列宽打架。
+- **不传 `maxWidth` 时根节点不写这条 inline 变量**，于是回落到 `:root` 的 `--acu-max-width` 令牌。
+  想全局改上限又不想碰模板，直接在宿主 CSS 里覆盖令牌即可（组件内传入的 `maxWidth` 仍然优先；
+  令牌和组件里的是同权重选择器，靠加载顺序决定胜负，宿主样式一般排在 `ai-chat-ui/style.css` 之后，够用）：
+
+  ```css
+  .acu-chat { --acu-max-width: min(100%, 1080px); }
+  ```
+
+- 三列的左右 padding 都算在列宽**以内**（`.acu-message-list-inner` / `.acu-input-wrap` / `.acu-welcome-inner` 都是 `box-sizing: border-box`），
+  所以列宽一致时三个盒子的左右边缘严格对齐。
+- 侧边消息条（`messageRailConfig`）用 `calc` 贴住这一列的左边缘：大屏下内容列居中截断，它跟着列走，而不是留在屏幕最左边。
+- **把输入框拆出去时（`showInput=false`），这一列要自己接上**：给常驻输入框那层写一份同样的 `--acu-max-width`，否则输入框和消息列各走各的，左边缘差一截。`ChatInput` 自己就是 `max-width: var(--acu-max-width); margin: 0 auto`，宿主只要把变量摆对位置。
 
 ## 附件与图片预览
 
@@ -931,6 +1036,7 @@ messages.value.push({
 
 | 令牌 | 默认 | 作用 |
 | --- | --- | --- |
+| `--acu-max-width` | `min(100%, 920px)` | 内容列（开场白 / 消息列表 / 输入框）宽度上限；组件内传入的 `maxWidth` 会覆盖它 |
 | `--acu-bubble-max-width` | `min(680px, 78%)` | 气泡与追问卡的最大宽度（同一列，改一处两处对齐） |
 | `--acu-bubble-assistant-border` | `#e7e7ea` / 深色 `transparent` | assistant 气泡的内描边（用 inset 阴影实现，不占布局） |
 | `--acu-turn-gap` | `20px` | 相邻两轮问答之间的间距 |
@@ -961,7 +1067,8 @@ npm run release  # 一键发版（见下）
 就能自动渲染出对应控件（开关 / 下拉 / 数字 / 文本 / 多选），条目计数和「重置配置」也会自动跟上。
 新增一个配置项时只需往 `SCHEMA` 补一行，不会再出现「文档里有、演示里没有」。
 
-演示页还支持 `?maxWidth=900` 这样的 URL 参数来初始化内容列宽度，方便直接截图对比。
+演示页本身不再卡宽度（撑满视口），所以在宽屏上就能直接看到内容列被 `--acu-max-width` 截断居中的效果。
+「内容列最大宽度」这一项留空即走组件默认值；想对比「铺满」和「截断」，填 `100%` 即可，也支持 `?maxWidth=900` 这样的 URL 参数初始化。
 
 ## 发布
 

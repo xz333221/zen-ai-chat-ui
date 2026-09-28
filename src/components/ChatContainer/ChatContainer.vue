@@ -53,7 +53,8 @@
       </div>
     </transition>
 
-    <div class="acu-chat-footer">
+    <!-- 输入框：showInput=false 时不渲染，由宿主自己摆在别处（VSCode 式底部常驻） -->
+    <div v-if="showInput" class="acu-chat-footer">
       <ChatInput
         :placeholder="placeholder"
         :disabled="disabled"
@@ -67,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed } from 'vue'
 import type {
   ChatMessage,
   PresetQuestion,
@@ -87,6 +88,7 @@ import MessageList from '@/components/MessageList/MessageList.vue'
 import WelcomeScreen from '@/components/WelcomeScreen/WelcomeScreen.vue'
 import ChatInput from '@/components/ChatInput/ChatInput.vue'
 import AskUserPanel from '@/components/AskUserPanel/AskUserPanel.vue'
+import { useResolvedTheme } from '@/composables/useResolvedTheme'
 
 const props = withDefaults(
   defineProps<{
@@ -120,6 +122,23 @@ const props = withDefaults(
      * 则生成期间仍可继续输入（Enter 不会误发）。
      */
     generating?: boolean
+    /**
+     * 是否渲染内置输入框。
+     *
+     * 默认 `true`。传 `false` 时 ChatContainer 只管上半区（开场白 / 消息列表 /
+     * 提问面板），输入框交给宿主自己摆——想做成 VSCode 那种「会话列表页底部
+     * 也是同一条输入框」时就得这么拆：列表和对话在中间区二选一，输入框永远
+     * 钉在最下方，两边共用同一个 `ChatInput` 实例（切页时草稿、附件都还在）。
+     *
+     * 配套用导出的 `ChatInput`。注意两件事：
+     * 1. 拆出去的那层不在 `.acu-root` 里，`--acu-*` 令牌要自己给：
+     *    套一层 `.acu-root` + `:data-theme`（`'auto'` 用 `useResolvedTheme` 解析）
+     * 2. 两处要给同一个 `--acu-max-width`，否则输入框和消息列对不齐
+     *
+     * 关掉输入框后，提问面板成为容器最后一个子元素，会自动补一行下边距。
+     * @default true
+     */
+    showInput?: boolean
     /**
      * 向用户提问（智能体 `ask_user` 一类的交互）。
      * 传非空对象时，在消息列表与输入框之间渲染提问面板；
@@ -179,8 +198,10 @@ const props = withDefaults(
      * 一处管三处：开场白内容区、消息列表、输入框——它们在视觉上是同一列，
      * 各自为政会出现「开场白 640 / 消息 768 / 输入框 768」这种对不齐。
      *
-     * 默认 `'100%'`：跟着容器走，不再有内置上限。
-     * @default '100%'
+     * **不传**时走 `--acu-max-width` 令牌（默认 `min(100%, 920px)`）：
+     * 窄容器下就是跟随容器，宽屏下截到 920px 居中——不传参会一路铺满，
+     * 一行文字横跨整块屏幕，看着空。传 `'100%'` 可显式恢复「铺满容器」。
+     * @default undefined（用 `--acu-max-width` 令牌）
      */
     maxWidth?: string | number
   }>(),
@@ -196,6 +217,7 @@ const props = withDefaults(
     placeholder: '输入消息，Enter 发送，Shift+Enter 换行',
     disabled: false,
     generating: false,
+    showInput: true,
     question: null,
     questionSubmitting: false,
     questionLabels: undefined,
@@ -206,13 +228,22 @@ const props = withDefaults(
     actionsConfig: undefined,
     messageMetaConfig: undefined,
     messageRailConfig: undefined,
-    maxWidth: '100%'
+    maxWidth: undefined
   }
 )
 
-/** 数字补 px，字符串原样——`:max-width="900"` 与 `max-width="900px"` 等价 */
+/**
+ * 数字补 px，字符串原样——`:max-width="900"` 与 `max-width="900px"` 等价。
+ *
+ * 不传时返回 undefined：Vue 会把这条 inline 样式移除，于是
+ * `var(--acu-max-width)` 回落到 `:root` 的令牌值（宿主可以只用 CSS 改上限）。
+ */
 const cssMaxWidth = computed(() =>
-  typeof props.maxWidth === 'number' ? `${props.maxWidth}px` : props.maxWidth
+  props.maxWidth === undefined
+    ? undefined
+    : typeof props.maxWidth === 'number'
+      ? `${props.maxWidth}px`
+      : props.maxWidth
 )
 
 const emit = defineEmits<{
@@ -230,29 +261,9 @@ const emit = defineEmits<{
 const listRef = ref<InstanceType<typeof MessageList> | null>(null)
 
 // —— 主题解析 ——
-const systemDark = ref(false)
-let mq: MediaQueryList | null = null
-
-function updateSystemDark(e: MediaQueryListEvent | MediaQueryList) {
-  systemDark.value = e.matches
-}
-
-const resolvedTheme = computed<ThemeMode>(() => {
-  if (props.theme === 'auto') return systemDark.value ? 'dark' : 'light'
-  return props.theme
-})
-
-onMounted(() => {
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    mq = window.matchMedia('(prefers-color-scheme: dark)')
-    updateSystemDark(mq)
-    mq.addEventListener('change', updateSystemDark)
-  }
-})
-
-onBeforeUnmount(() => {
-  if (mq) mq.removeEventListener('change', updateSystemDark)
-})
+// 'auto' 要读 prefers-color-scheme，逻辑和宿主自己放输入框时用的是同一份
+// （见 useResolvedTheme：输入框被拆到组件外后，那边也得自己解析一次）
+const resolvedTheme = useResolvedTheme(() => props.theme)
 
 // —— 事件转发 —— //
 function onSend(payload: { text: string; files: SelectedFile[] }) {
@@ -305,6 +316,12 @@ defineExpose({
   max-width: var(--acu-max-width);
   margin: 0 auto;
   padding: 0 var(--acu-space-4);
+
+  // showInput=false（输入框在宿主那边）时提问面板就是容器的最后一格，
+  // 底下得自己留一口气，否则会贴着容器底边
+  &:last-child {
+    padding-bottom: var(--acu-space-3);
+  }
 }
 
 // 提问面板出现 / 消失过渡（与 ThinkingBlock 的 acu-collapse 同一套节奏）

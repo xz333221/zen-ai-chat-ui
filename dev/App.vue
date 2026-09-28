@@ -96,9 +96,41 @@
       </div>
     </section>
 
-    <main class="demo-main">
-      <!-- 会话列表：独立组件，和 ChatContainer 并排就是完整的对话应用骨架 -->
-      <aside v-if="cfg.convShow" class="demo-conv">
+    <!--
+      窄屏分页栏：对话区被挤到放不下时（见 narrowSplit），列表与对话不再并排，
+      而是各占一页，由这条页栏负责「现在在哪一页 / 怎么回去」。
+      宽屏下整条不渲染，布局和以前完全一样。
+    -->
+    <div v-if="narrowSplit" class="demo-pagebar">
+      <button
+        v-if="mobilePane === 'chat'"
+        type="button"
+        class="demo-pagebar-back"
+        @click="mobilePane = 'list'"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        <span>会话列表</span>
+      </button>
+      <span class="demo-pagebar-title">{{ mobilePane === 'list' ? '会话列表' : activeTitle }}</span>
+    </div>
+
+    <!--
+      acu-root 不能省：库把盒模型重置（box-sizing: border-box）限定在 .acu-root 子树里，
+      是为了不污染宿主。卡片里的列表和常驻输入框都是库组件，少了这一层，
+      输入框这种 div 会退回 content-box，宽度 = 100% + padding，横着溢出父容器
+      （button / textarea 有浏览器 UA 的 border-box 兜着，所以只有输入框会露馅）。
+    -->
+    <main
+      ref="mainEl"
+      class="demo-main acu-root"
+      :class="{ 'is-paged': narrowSplit }"
+      :data-theme="resolvedTheme"
+      :style="{ '--acu-max-width': demoMaxWidth }"
+    >
+      <!-- 会话列表：宽屏是左侧栏；窄屏分页时与对话区二选一，占满中间区 -->
+      <aside v-if="showList" class="demo-conv" :class="{ 'demo-conv--page': narrowSplit }">
         <ConversationList
           :items="convItems"
           :active-id="demoActiveId"
@@ -110,7 +142,11 @@
         />
       </aside>
 
+      <!-- 用 v-show 而不是 v-if：切页时对话本身（滚动位置、流式状态）要留着 -->
+      <!-- show-input=false：输入框拆到下面常驻，这里只管气泡区 -->
       <ChatContainer
+        v-show="showChat"
+        :show-input="false"
         :messages="messages"
         :preset-questions="presetQuestions"
         :welcome-title="cfg.welcomeTitle"
@@ -120,9 +156,6 @@
         :user-avatar="resolveAvatar(cfg.userAvatar)"
         :show-avatar="cfg.showAvatar"
         :theme="cfg.theme"
-        :placeholder="inputPlaceholder"
-        :disabled="busy || cfg.forceDisabled"
-        :generating="busy || cfg.forceGenerating"
         :question="demoQuestion"
         :question-submitting="questionSubmitting"
         :upload-config="uploadConfig"
@@ -133,13 +166,30 @@
         :message-meta-config="messageMetaConfig"
         :message-rail-config="messageRailConfig"
         :max-width="demoMaxWidth"
-        @stop="onStop"
-        @send="onSend"
         @select="onSelect"
         @retry="onRetry"
         @followup-select="onFollowupSelect"
         @answer="onAnswer"
       />
+
+      <!--
+        输入框常驻：对话页、会话列表页都在最下方（VSCode 那种感觉）。
+        它被拆到 ChatContainer 外面，所以有两件事得靠外层 .demo-main 兜——
+        - 主题：:data-theme（useResolvedTheme 解析，'auto' 才会跟着系统走）
+        - 列宽：--acu-max-width；ChatContainer 那份是它自己注入的，这里是给
+          拆出来的输入框用的，两处同源，消息列和输入框才会对齐
+        好处是全程只有一个实例：列表页 ↔ 对话页来回切，草稿和附件都还在。
+      -->
+      <div class="demo-composer">
+        <ChatInput
+          :placeholder="inputPlaceholder"
+          :disabled="busy || cfg.forceDisabled"
+          :generating="busy || cfg.forceGenerating"
+          :upload-config="uploadConfig"
+          @send="onSend"
+          @stop="onStop"
+        />
+      </div>
     </main>
 
     <!-- 调试浮动按钮（仅调试模式开启时显示） -->
@@ -175,11 +225,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   ChatContainer,
+  ChatInput,
   ConversationList,
   useStreaming,
+  useResolvedTheme,
   resetStreamTiming,
   uid,
   AI_AVATAR_PRESETS,
@@ -293,8 +345,8 @@ const SCHEMA: ConfigGroup[] = [
         label: '内容列最大宽度',
         field: 'maxWidth',
         type: 'text',
-        placeholder: "100% / 900 / 60ch",
-        hint: '一处管开场白 / 消息列表 / 输入框三列，默认 100%'
+        placeholder: '留空走组件默认；100% / 900 / 60ch',
+        hint: '一处管开场白 / 消息列表 / 输入框三列，留空 = min(100%, 920px)'
       }
     ]
   },
@@ -584,7 +636,7 @@ const SCHEMA: ConfigGroup[] = [
   {
     title: '会话列表',
     prop: 'ConversationList',
-    desc: '独立的会话列表组件：搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式。左侧 260px 容器即窄面板预览。',
+    desc: '独立的会话列表组件：搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式。左侧 260px 容器即窄面板预览；窗口再窄到放不下对话列时，列表与对话会自动分成两页。',
     fields: [
       { key: 'convShow', label: '显示列表', type: 'bool', hint: '和 ChatContainer 并排' },
       { key: 'convCompact', label: '紧凑模式', field: 'compact', type: 'bool', hint: '窄面板 / 侧栏用' },
@@ -626,7 +678,7 @@ const DEFAULTS = {
   welcomeDescription: '这是一个大模型对话 UI 组件库的演示。试试下面的预设问题，或直接输入消息。',
   assistantName: 'AI 助手',
   placeholder: '',
-  maxWidth: rawMaxWidth && rawMaxWidth !== '' ? rawMaxWidth : '100%',
+  maxWidth: rawMaxWidth ?? '',
 
   // 头像
   showAvatar: true,
@@ -722,6 +774,15 @@ function toggleMulti(key: string, value: string) {
 const themeLabel = computed(
   () => ({ light: '浅色', dark: '深色', auto: '跟随系统' })[cfg.theme] ?? cfg.theme
 )
+
+/**
+ * 解析后的主题。
+ *
+ * ChatContainer 内部会自己解析 'auto'，但常驻输入框被拆到了组件外，
+ * 那一层拿不到它解析的结果，只能自己再来一次——两边都走 useResolvedTheme，
+ * 保证「跟随系统」时不会出现消息区深色、输入框浅色。
+ */
+const resolvedTheme = useResolvedTheme(() => cfg.theme)
 
 function toggleTheme() {
   const order: (ThemeMode | 'auto')[] = ['light', 'dark', 'auto']
@@ -821,6 +882,7 @@ function seedConversation(id: string | null) {
 function onConvSelect(id: string) {
   demoActiveId.value = id
   seedConversation(id)
+  mobilePane.value = 'chat'
 }
 
 function onConvNew() {
@@ -829,6 +891,7 @@ function onConvNew() {
   demoConversations.value.unshift({ id, title: `新会话 ${convSeq}`, meta: '刚刚 · 0 条' })
   demoActiveId.value = id
   seedConversation(id)
+  mobilePane.value = 'chat'
 }
 
 function onConvRename(id: string, title: string) {
@@ -843,6 +906,49 @@ function onConvDelete(id: string) {
     seedConversation(demoActiveId.value)
   }
 }
+
+// —— 窄屏分页 ——
+// 对话列被挤到放不下时，会话列表与对话不再并排，而是各占一页（列表页 ↔ 对话页）。
+// 判断依据是「容器宽度」而不是「视口宽度」：`.demo-main` 一量就知道还剩多少地方给对话，
+// 页面 padding 改了多少、浏览器缩放到多少，都不用跟着改阈值。
+const NARROW_MIN_CHAT = 560 // 对话列的最小可用宽度，低于它就该分页了
+const NARROW_LIST_WIDTH = 260 // .demo-conv 的宽度，和下面 CSS 里的值保持一致
+
+const mainEl = ref<HTMLElement | null>(null)
+const mainWidth = ref(0)
+/** 分页模式下当前在哪一页 */
+const mobilePane = ref<'list' | 'chat'>('list')
+let mainObserver: ResizeObserver | null = null
+
+onMounted(() => {
+  if (!mainEl.value || typeof ResizeObserver === 'undefined') return
+  mainObserver = new ResizeObserver((entries) => {
+    mainWidth.value = entries[0]?.contentRect.width ?? 0
+  })
+  mainObserver.observe(mainEl.value)
+})
+
+onBeforeUnmount(() => {
+  mainObserver?.disconnect()
+  mainObserver = null
+})
+
+/** 列表占位后对话列不够宽 —— 且确实有列表可切，才分页 */
+const narrowSplit = computed(
+  () => cfg.convShow && mainWidth.value > 0 && mainWidth.value - NARROW_LIST_WIDTH < NARROW_MIN_CHAT
+)
+const showChat = computed(() => !narrowSplit.value || mobilePane.value === 'chat')
+const showList = computed(() => cfg.convShow && (!narrowSplit.value || mobilePane.value === 'list'))
+/** 页栏标题：对话页显示当前会话名 */
+const activeTitle = computed(
+  () => demoConversations.value.find((entry) => entry.id === demoActiveId.value)?.title || '对话'
+)
+
+// 进入分页模式先落在列表页（相当于移动端打开应用的第一屏）。
+// 只有跨过阈值那一刻才重置，宽屏来回缩放不会把正在看的对话切走。
+watch(narrowSplit, (now) => {
+  if (now) mobilePane.value = 'list'
+})
 
 // —— 工具调用展示配置 ——
 const toolCallsConfig = computed<ToolCallsConfig>(() => ({
@@ -907,11 +1013,17 @@ const uploadConfig = computed<Partial<UploadConfig>>(() => {
 })
 
 // —— 内容列宽度 ——
-// 纯数字转 number 走 prop 的「数字补 px」分支，其余（'60ch' 等）原样透传
-const demoMaxWidth = computed<string | number>(() => {
+// 留空 = 不传，走组件的默认值（--acu-max-width 令牌：min(100%, 920px)）；
+// 纯数字补 px，其余（'60ch' / '100%' 等）原样透传。
+// 想对比「铺满」和「截断居中」，在面板里填 100% 即可。
+//
+// 输出的是拼好的 CSS 字符串：同一个值要喂两处——ChatContainer 的 max-width
+// prop（字符串原样用）和常驻输入框那层的 --acu-max-width（见模板），
+// 在这里统一拼好，两处才拿得到同一个数，消息列和输入框不会各走各的。
+const demoMaxWidth = computed<string | undefined>(() => {
   const raw = String(cfg.maxWidth).trim()
-  if (!raw) return '100%'
-  return /^\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw
+  if (!raw) return undefined
+  return /^\d+(\.\d+)?$/.test(raw) ? `${raw}px` : raw
 })
 
 // —— 输入框占位：留空回落到组件默认值 ——
@@ -1037,6 +1149,9 @@ function settle(msg: ChatMessage, e: unknown) {
 
 async function onSend({ text, files }: { text: string; files: SelectedFile[] }) {
   if (busy.value) return
+  // 分页模式下可能是在会话列表页敲的（输入框常驻，列表页也能发）：
+  // 发完得跳到对话页，否则用户看不到自己刚发出去的消息
+  mobilePane.value = 'chat'
   const userMsg: ChatMessage = {
     id: uid('u'),
     role: 'user',
@@ -1416,16 +1531,27 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-width: 920px;
-  margin: 0 auto;
+  /* 演示页自己不再卡宽度：宽度一卡死，大屏下 ChatContainer 收到的容器就永远
+     不到 920px，「内容列截断居中」这条默认行为在演示里根本看不出来。
+     现在演示页撑满视口，正好复现宿主应用的真实场景（宽屏 + 左侧会话列表）。 */
   padding: 16px;
   box-sizing: border-box;
+}
+
+/* 很窄的窗口下把演示页自己的留白也收一收，省得内容区没地方站 */
+@media (max-width: 640px) {
+  .demo-app {
+    padding: 10px;
+  }
 }
 
 .demo-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* 窄窗口下让品牌与按钮各自换行，而不是把按钮压成「重置/配置」两行 */
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 8px 4px 16px;
 }
 
@@ -1450,12 +1576,14 @@ body {
 
 .demo-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .demo-btn {
   padding: 6px 14px;
   font-size: 13px;
+  white-space: nowrap;
   border: 1px solid #d4d4d8;
   background: #fff;
   color: #52525b;
@@ -1649,31 +1777,119 @@ body {
   cursor: pointer;
 }
 
+/*
+  主区用 grid 划三块：会话列表 / 对话 / 输入框。
+  宽屏两列两行 —— 列表整列贯通，右边上是对话、右下是输入框，
+  输入框因此只落在对话那一列里，不会伸到列表底下。
+
+  这里同时是中间这张卡片的主题根（:data-theme）：输入框被拆到 ChatContainer
+  外面之后，如果只有对话区是深色，卡片底部就会横着一条深色输入框、
+  上面却是一片浅色。卡片自己的底色也改用令牌，跟着一起切。
+*/
 .demo-main {
   flex: 1;
   min-height: 0;
-  display: flex;
-  border: 1px solid #e7e7ea;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'list chat'
+    'list composer';
+  border: 1px solid var(--acu-border);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(24, 24, 27, 0.08);
+  background: var(--acu-bg);
+}
+
+/*
+  分页模式（窄屏）：列表与对话二选一占满中间区，输入框照旧钉在最下方。
+  两块都落在 stage 这一格里，靠 showList / showChat 控制谁可见。
+*/
+.demo-main.is-paged {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'stage'
+    'composer';
+}
+.demo-main.is-paged .demo-conv,
+.demo-main.is-paged > :deep(.acu-chat) {
+  grid-area: stage;
+}
+
+/*
+  常驻输入框：留白和渐变跟 ChatContainer 内置的那条 .acu-chat-footer 对齐，
+  拆出来之后视觉上不该有任何差别。
+  .demo-main 前缀是为了稳赢 .acu-root 自带的 background（同为单类名，谁后加载谁生效）。
+*/
+.demo-main .demo-composer {
+  grid-area: composer;
+  padding: var(--acu-space-3) var(--acu-space-4) var(--acu-space-4);
+  background: linear-gradient(to top, var(--acu-bg) 70%, transparent);
+}
+
+/* —— 窄屏分页栏（仅分页模式渲染）—— */
+.demo-pagebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px 10px;
+  min-width: 0;
+}
+.demo-pagebar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 10px 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #52525b;
   background: #fff;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.demo-pagebar-back:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+.demo-pagebar-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
 }
 
 /* 会话列表预览区：260px 宽，顺便预演窄面板下的紧凑表现 */
 .demo-conv {
-  flex-shrink: 0;
+  grid-area: list;
   width: 260px;
   min-width: 0;
+  /* 演示页没有全局盒模型重置，这里必须自己声明：content-box 下 width: 100%
+     （分页模式）会变成「100% + 左右 padding」，比 .demo-main 宽出 26px，
+     被 overflow: hidden 一裁，列表行的右侧圆角就没了、操作按钮贴着边框。
+     顺带让宽屏下的 260px 真的等于 NARROW_LIST_WIDTH（否则实际是 286px）。 */
+  box-sizing: border-box;
   padding: 14px 12px 14px 14px;
-  border-right: 1px solid #e7e7ea;
-  background: #fafafa;
+  border-right: 1px solid var(--acu-border);
+  background: var(--acu-surface);
   overflow: hidden;
+}
+
+/* 分页模式下的列表页：独占整块中间区，不再有分隔线 */
+.demo-conv--page {
+  width: 100%;
+  border-right: none;
 }
 
 /* 列表出现时让对话容器让出宽度（ChatContainer 根节点是 .acu-chat） */
 .demo-main > :deep(.acu-chat) {
-  flex: 1;
+  grid-area: chat;
   min-width: 0;
 }
 

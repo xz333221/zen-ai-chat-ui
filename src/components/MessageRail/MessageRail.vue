@@ -272,7 +272,12 @@ defineExpose({ hovering })
 <style lang="scss" scoped>
 .acu-rail {
   position: absolute;
-  left: 6px;
+  // 贴住内容列左边缘。大屏下内容列被 --acu-max-width 截断居中，写死 left: 6px
+  // 会把侧边条留在屏幕最左边、离消息十万八千里（条和消息的对应关系就此断掉）。
+  // 减去的 40px = 条组宽上限 26 + 内边距 6 + 8 的呼吸位，让最长的一根也落在列外。
+  // max(6px, …) 兜住「列比容器还宽」（即没被截断）的情况：算出负数就退回原来的 6px；
+  // var 的兜底值给 100%，没引主题样式（令牌缺失）时同样退回 6px。
+  left: max(6px, calc(50% - var(--acu-max-width, 100%) / 2 - 40px));
   top: 50%;
   transform: translateY(-50%);
   z-index: 3;
