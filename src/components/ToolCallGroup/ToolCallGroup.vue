@@ -55,12 +55,7 @@
 
     <!-- 调用列表：折叠时只保留最新一个 -->
     <div class="acu-toolgroup-list">
-      <ToolCallBlock
-        v-for="(tc, index) in toolCalls"
-        v-show="!grouped || expanded || index === toolCalls.length - 1"
-        :key="tc.id"
-        :tool-call="tc"
-      />
+      <ToolCallBlock v-for="tc in visibleCalls" :key="tc.id" :tool-call="tc" />
     </div>
   </div>
 </template>
@@ -103,6 +98,21 @@ watch(
 function toggle() {
   expanded.value = !expanded.value
 }
+
+/**
+ * 实际渲染出来的调用列表：折叠态只留最新一个。
+ *
+ * 为什么算好列表用 v-for，而不是给每一行挂 v-show（2026-09-29 改）：
+ * v-show 打在**组件**上时，Vue 会把指令合并到该组件的根节点 vnode 上；而根节点是不是
+ * "真元素"取决于模板怎么编出来的 —— 模板开头有注释且 dist 是 dev 模式编译时，根节点是
+ * Fragment（DEV_ROOT_FRAGMENT），**只有 dev 版 Vue 会把它展开回真实元素**，生产版 Vue
+ * 不会：指令于是挂在 Fragment 上，永远不执行（dev 里还会警告 non-element root node）。
+ * 症状就是"折叠只换文案，行一条不少"，而且只在生产包/正式版里出现 —— 踩过一次。
+ * 顺带好处：折叠态 DOM 里只有 1 行，长任务（几十次调用）不再挂几十个隐藏节点。
+ */
+const visibleCalls = computed(() =>
+  grouped.value && !expanded.value ? props.toolCalls.slice(-1) : props.toolCalls
+)
 
 /** 聚合状态：running 优先，其次 error，最后 done */
 const stats = computed(() => {
