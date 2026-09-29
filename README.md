@@ -11,6 +11,7 @@
 - **输入框可拆**：`ChatContainer` 传 `showInput=false` 就不渲染内置输入框，改由宿主用导出的 `ChatInput` 自己摆位；整个应用只挂一个实例，切页时草稿与待发附件都还在
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
+- **任务计划**：计划类工具调用（`update_plan` / `TodoWrite` …）自动渲染成带勾选态的清单（三态 + 进度条 + 说明），并在工具组折叠时保持常驻——折叠只藏别的调用，不藏当前计划
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
 - **运行元信息**：可选在气泡下方展示回答耗时、首字延迟、token 用量（`1.2s · 510ms · ↑26 ↓571`），耗时由 `useStreaming` 自动计时；与操作栏同步悬停显示（可设常显）
 - **Markdown 渲染**：基于 markdown-it + Shiki，双主题代码高亮、表格、引用、任务列表，代码块带语言标签与一键复制
@@ -457,6 +458,7 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 | `uploadConfig`      | `Partial<UploadConfig>`    | `{}`       | 附件上传配置          |
 | `followup`          | `FollowupInput`            | -          | 追问建议（详见下方）  |
 | `toolCallsConfig`   | `ToolCallsConfig`          | -          | 工具调用展示配置（详见下方） |
+| `planConfig`        | `PlanConfig`               | -          | 计划清单展示配置（详见下方） |
 | `thinkingConfig`    | `ThinkingConfig`           | -          | 思考块展示配置（详见下方） |
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
 | `messageMetaConfig` | `MessageMetaConfig`        | -          | 耗时 / token 元信息行配置（详见下方） |
@@ -474,7 +476,7 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 
 ### 其他可独立使用的组件
 
-`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`ConversationList`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
+`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`PlanBlock`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`ConversationList`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
 
 单独用时记得给它们套一层 `.acu-root`：盒模型重置（`box-sizing: border-box`）和主题令牌都挂在这个类下面，库靠它做到「组件内样式自洽、不污染宿主」。少了这层，`div` 类的根节点会退回 `content-box`（`width: 100%` + padding 就横着溢出），深色主题也不会生效。
 
@@ -675,6 +677,47 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 
 ```vue
 <ToolCallGroup :tool-calls="msg.toolCalls ?? []" :config="{ defaultExpanded: true }" />
+```
+
+## 计划清单（PlanBlock）
+
+计划类工具调用（`update_plan` / `TodoWrite` / `todo_write` …）不显示成一坨参数 JSON，而是渲染成**带勾选态的清单**：
+
+```
+┌────────────────────────────────────────────┐
+│ ☑ 计划                                2/5 │  ← 标题 + 进度
+│ ▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ │  ← 细进度条
+│ 先让库认计划，再让宿主传参数                 │  ← 计划说明（explanation）
+│ ✓ 读现有 ToolCallGroup 的折叠逻辑            │
+│ ✓ 抽出 parsePlanArgs 并让计划块常驻          │
+│ ◉ 宿主升级依赖并跑 tsc / build              │  ← 脉冲点 = 进行中
+│ ○ 补一条回归测试                            │
+└────────────────────────────────────────────┘
+```
+
+三条约定：
+
+1. **不用宿主适配**：只要工具名是计划类、`arguments` 里有步骤，组件自己就渲染清单。参数形状各家不同（`steps` / `todos` / 直接给数组，字段有 `content` / `text` / `title` / `activeForm`，状态有 `in_progress` / `done` / `active`…），库在 `utils/plan.ts` 里统一归一。宿主想自己控制，解析函数是导出的：`parsePlanArgs` / `readPlan` / `isPlanTool` / `planProgress`。
+2. **折叠时计划不会被折没**：同一条消息里的多个工具调用会折叠成一组、只留最新一个，但**计划被提到常驻区**——模型改完计划往往接着去干别的，折叠会把最该被看着的东西藏起来。常驻区只显示最新一份计划（旧快照不刷屏）。
+3. **原始参数仍可查**：清单下面有一个默认收起的「原始参数」，排查和复制时用得到。
+
+`toolCall.plan` 可以由宿主直接挂（已归一化的 `PlanStep[]`），挂了就不走自动解析；`toolCall.planNote` 同理。
+
+### `PlanConfig` 字段
+
+| 字段          | 类型      | 默认值 | 说明 |
+| ------------- | --------- | ------ | ---- |
+| `title`       | `string`  | `计划` | 卡片标题 |
+| `progress`    | `boolean` | `true` | 标题右侧是否显示 `2/5` |
+| `progressBar` | `boolean` | `true` | 是否显示细进度条 |
+| `labels`      | `PlanLabels` | -  | 文案覆盖（走 i18n 的宿主传自己的翻译） |
+
+```vue
+<!-- 英文界面 -->
+<ChatContainer
+  :messages="messages"
+  :plan-config="{ labels: { title: 'Plan', raw: 'Raw arguments' } }"
+/>
 ```
 
 ## 消息操作栏
