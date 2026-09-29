@@ -1042,8 +1042,11 @@ messages.value.push({
 | `--acu-bubble-assistant-bg` | `transparent` | assistant 回答的底色。默认**没有气泡**，回答直接落在页面底色上 |
 | `--acu-bubble-assistant-border` | `transparent` | assistant 气泡的内描边（用 inset 阴影实现，不占布局） |
 | `--acu-turn-gap` | `16px` | 相邻两轮问答之间的间距 |
+| `--acu-card-bg` / `-border` / `-border-hover` | `#ffffff` / `#dfe0e9` / `#c3c5d4` | 预设问题等可点选卡片的底与描边（深色下为 `#1e1e25` / `#2f2f39` / `#454554`） |
 | `--acu-space-0-5` `-1-5` `-2-5` `-3-5` | `2px` `6px` `10px` `14px` | 半步间距刻度 |
-| `--acu-font-size-2xs` / `-2xl` | `11px` / `22px` | 元信息等小字 / 开场白标题 |
+| `--acu-font-size-2xs` / `-2xl` / `-3xl` | `11px` / `22px` / `26px` | 元信息等小字 / 章节标题 / 开场白主标题 |
+| `--acu-radius-md` | `14px` | 圆角阶梯里 12 → 18 之间的一档（开场白徽标、预设卡片） |
+| `--acu-line-height-heading` | `1.25` | 标题行高。**标题不要继承正文的 `--acu-line-height`(1.65)**，否则单行标题会撑出 36px 的行盒 |
 | `--acu-line-height-tight` / `-relaxed` | `1.5` / `1.7` | 单行控件 / 长文（思考、代码） |
 | `--acu-overlay-*` | 深色系 | 图片灯箱配色（定义在裸 `:root`，不随主题变化） |
 

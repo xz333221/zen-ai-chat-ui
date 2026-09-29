@@ -388,10 +388,14 @@ const showEmptyHint = computed(() => !props.items.length && !props.loading)
   color: inherit;
   text-align: left;
   font-size: var(--acu-font-size-sm);
+}
 
-  &:hover:not(:disabled) {
-    background: var(--acu-surface-hover);
-  }
+// hover 底色要避开选中行：这个按钮的底是画在 li 的选中底（primary-soft）
+// **之上**的，无条件给 hover 上 --acu-surface-hover 会让「选中 + 悬停」的
+// 那一行整块翻成中性灰 —— 指针一划过，当前会话的紫色标识就没了，
+// 看起来像选中态被取消。选中行继续吃 li 的底色，不叠这一层。
+.acu-conv-item:not(.is-active) .acu-conv-main:hover:not(:disabled) {
+  background: var(--acu-surface-hover);
 }
 
 .acu-conv-title {

@@ -42,6 +42,17 @@
   --acu-border: #e8e9ef;
   --acu-border-strong: #d6d8e0;
 
+  // —— 卡片（预设问题 / 可点选条目）——
+  // 原先卡片直接用 --acu-surface(#f7f8fa) 灰底：那是「填色」，铺在近白的
+  // 页面上会读成一块块被禁用的表单域。改成白底 + 一条能看清的细描边 ——
+  // 卡片靠「边界」立住而不是靠「填色」，视觉重量立刻降一档，
+  // 9 张并排也不再糊成一片灰格子。
+  // 描边刻意取 border-strong 而不是 border：后者在 #fcfcfd 的页面上对比度
+  // 只有 ~1.1:1，白底卡片会失去轮廓、看上去像没画边框
+  --acu-card-bg: #ffffff;
+  --acu-card-border: #dfe0e9;
+  --acu-card-border-hover: #c3c5d4;
+
   // —— 主色 ——
   --acu-primary: #6366f1;
   --acu-primary-hover: #5457e5;
@@ -97,6 +108,10 @@
   --acu-radius-xs: 4px;
   --acu-radius-sm: 8px;
   --acu-radius: 12px;
+  // 12 → 18 之间原来是空的，凡是「比默认档再圆一点、又不到 lg」的场合
+  // （开场白 logo、预设卡片）只能二选一硬凑：选 12 偏方，选 18 偏圆。
+  // 补上这一档，两端都有了着落
+  --acu-radius-md: 14px;
   // 气泡 / 输入框用的那档从 16 提到 18：配合「assistant 无气泡」后，
   // 用户气泡与输入框是画面里仅有的两块圆角实体，圆角大一点更松弛
   --acu-radius-lg: 18px;
@@ -139,7 +154,14 @@
   --acu-font-size-lg: 16px;
   --acu-font-size-xl: 18px;
   --acu-font-size-2xl: 22px;
+  // 开场白主标题专用。2xl(22) 和 base 只差 1.5 倍，撑不起 920px 内容列里的
+  // 「唯一主角」；26px 对照 14px 正文是 1.86 倍，同时又不至于大到喧宾夺主
+  --acu-font-size-3xl: 26px;
   --acu-line-height: 1.65;
+  // 标题必须有自己的一档行高：全局 1.65 是给正文段落用的，
+  // 套到单行标题上会撑出 36px 的行盒 —— 上下各多出 7px 空气，
+  // 标题因此「浮」在句子里，和下方描述凑不成一组
+  --acu-line-height-heading: 1.25;
   // 单行控件（按钮 / 输入框）用紧凑行高；长文（思考 / 代码）用宽松行高
   --acu-line-height-tight: 1.5;
   --acu-line-height-relaxed: 1.7;
@@ -179,6 +201,12 @@
 
   --acu-border: #2b2b33;
   --acu-border-strong: #55555f;
+
+  // 深色下卡片往「比页面亮一档」走（页面 #17171c → 卡片 #1e1e25）：
+  // 和浅色相反，深色里的层级靠提亮表达，凹陷感会读成「不可用」
+  --acu-card-bg: #1e1e25;
+  --acu-card-border: #2f2f39;
+  --acu-card-border-hover: #454554;
 
   --acu-primary: #818cf8;
   --acu-primary-hover: #6366f1;

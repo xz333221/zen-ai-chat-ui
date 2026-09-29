@@ -372,6 +372,16 @@ defineExpose({ scrollToBottom })
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  // 左右 gutter 打在这一层（滚动容器）而不是 .acu-message-list-inner：
+  // inner 带 padding 会让内容列实际只有 max-width - 32 宽，而底部输入框的
+  // gutter 在 .acu-chat-footer 上 —— 两边各算各的，输入框的框线会比消息列
+  // 每侧多探出 16px。放到外层后内容列即 max-width 本身，和输入框对齐。
+  //
+  // 选这一层而不是 .acu-message-list-inner 的最大宽度 +32px，是因为
+  // MessageRail 的 left 算式依赖「内容列左边缘 = 50% - max-width/2」：
+  // inner 加宽会把那条假定推歪 16px，侧边条跟着偏。给滚动容器加对称
+  // padding 则不动居中盒的位置，算式继续成立。
+  padding: 0 var(--acu-space-4);
   @include acu-scrollbar;
 
   scroll-behavior: auto;
@@ -386,7 +396,7 @@ defineExpose({ scrollToBottom })
   margin: 0 auto;
   // 首屏顶部给足 24px：assistant 不再是气泡之后，第一段回答直接顶在容器边上
   // 会显得局促，顶部那口气全靠这段 padding
-  padding: var(--acu-space-6) var(--acu-space-4) var(--acu-space-6);
+  padding: var(--acu-space-6) 0 var(--acu-space-6);
 }
 
 .acu-scroll-btn {
