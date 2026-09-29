@@ -75,6 +75,20 @@ export interface PlanConfig {
    * @default true
    */
   progressBar?: boolean
+  /**
+   * 是否允许点标题行收起 / 展开步骤清单。
+   *
+   * 关掉时标题行退化成纯展示（不是 button），折叠能力整体消失。
+   * @default true
+   */
+  collapsible?: boolean
+  /**
+   * 初始是否收起。
+   * 收起后仍保留标题、`2/5` 进度和细进度条 —— 一行看完「还剩几步」，
+   * 想看细节再点开。
+   * @default false
+   */
+  defaultCollapsed?: boolean
   /** 文案覆盖 */
   labels?: PlanLabels
 }

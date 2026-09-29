@@ -6,9 +6,19 @@
     - 标题右侧是 `2/5` 进度，下方一条 2px 细进度条
     - 步骤超过一屏高度时内部滚动，不把气泡撑到看不见正文
   -->
-  <div class="acu-plan" :class="{ 'is-running': status === 'running' }">
-    <!-- 标题行 -->
-    <div class="acu-plan-header">
+  <div
+    class="acu-plan"
+    :class="{ 'is-running': status === 'running', 'is-collapsed': collapsible && !expanded }"
+  >
+    <!-- 标题行：可收起时它就是折叠开关（button + aria-expanded）；
+         关掉 collapsible 时退化成 div，纯展示不可点 -->
+    <component
+      :is="collapsible ? 'button' : 'div'"
+      class="acu-plan-header"
+      :type="collapsible ? 'button' : undefined"
+      :aria-expanded="collapsible ? expanded : undefined"
+      @click="toggle"
+    >
       <span class="acu-plan-icon">
         <svg v-if="status === 'running'" class="acu-spin" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
           <path d="M21 12a9 9 0 1 1-6.219-8.56" />
@@ -20,41 +30,62 @@
       </span>
       <span class="acu-plan-title">{{ titleText }}</span>
       <span v-if="showProgress" class="acu-plan-count">{{ progressText }}</span>
-    </div>
+      <svg
+        v-if="collapsible"
+        class="acu-plan-chevron"
+        :class="{ 'is-open': expanded }"
+        viewBox="0 0 24 24"
+        width="12"
+        height="12"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </component>
 
-    <!-- 细进度条 -->
+    <!-- 细进度条：收起时也留着 —— 一行看完「还剩几步」 -->
     <div v-if="showBar" class="acu-plan-bar" role="presentation">
       <span class="acu-plan-bar-fill" :style="{ width: barWidth }" />
     </div>
 
-    <!-- 计划说明（模型对这次调整给的解释） -->
-    <p v-if="note" class="acu-plan-note">{{ note }}</p>
+    <transition name="acu-collapse">
+      <!-- 计划说明 + 步骤清单：折叠时只留标题与进度条 -->
+      <div v-show="collapsible ? expanded : true" class="acu-plan-detail">
+        <!-- 计划说明（模型对这次调整给的解释） -->
+        <p v-if="note" class="acu-plan-note">{{ note }}</p>
 
-    <!-- 步骤清单 -->
-    <ul class="acu-plan-steps">
-      <li
-        v-for="(step, i) in steps"
-        :key="`${i}-${step.content}`"
-        class="acu-plan-step"
-        :class="`is-${stepStatus(step)}`"
-      >
-        <span class="acu-plan-marker" aria-hidden="true">
-          <svg v-if="stepStatus(step) === 'completed'" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-          <span v-else-if="stepStatus(step) === 'in_progress'" class="acu-plan-dot" />
-        </span>
-        <span class="acu-plan-body">
-          <span class="acu-plan-content">{{ step.content }}</span>
-          <span v-if="step.note" class="acu-plan-step-note">{{ step.note }}</span>
-        </span>
-      </li>
-    </ul>
+        <!-- 步骤清单 -->
+        <ul class="acu-plan-steps">
+          <li
+            v-for="(step, i) in steps"
+            :key="`${i}-${step.content}`"
+            class="acu-plan-step"
+            :class="`is-${stepStatus(step)}`"
+          >
+            <span class="acu-plan-marker" aria-hidden="true">
+              <svg v-if="stepStatus(step) === 'completed'" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span v-else-if="stepStatus(step) === 'in_progress'" class="acu-plan-dot" />
+            </span>
+            <span class="acu-plan-body">
+              <span class="acu-plan-content">{{ step.content }}</span>
+              <span v-if="step.note" class="acu-plan-step-note">{{ step.note }}</span>
+            </span>
+          </li>
+        </ul>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { PlanConfig, PlanStep, PlanStepStatus, ToolCallStatus } from '@/types'
 import { planProgress } from '@/utils/plan'
 
@@ -89,6 +120,17 @@ const progressText = computed(() => {
 
 const showBar = computed(() => props.config?.progressBar !== false && stats.value.total > 0)
 
+const collapsible = computed(() => props.config?.collapsible !== false)
+
+// 默认展开：计划是执行过程的一部分，摊开才看得到「现在卡在哪一步」。
+// 宿主可以显式传 defaultCollapsed 让它一上来就收起。
+const expanded = ref(props.config?.defaultCollapsed !== true)
+
+function toggle() {
+  if (!collapsible.value) return
+  expanded.value = !expanded.value
+}
+
 // 只按「已完成」算完成度：进行中的那一步还没做完
 const barWidth = computed(() => {
   const { done, total } = stats.value
@@ -120,6 +162,34 @@ function stepStatus(step: PlanStep): PlanStepStatus {
   display: flex;
   align-items: center;
   gap: var(--acu-space-2);
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  // 标题行是 button：先抹掉浏览器默认外观，再补交互反馈
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  border-radius: var(--acu-radius-sm);
+
+  button.acu-plan-header {
+    cursor: pointer;
+    @include acu-focus-ring;
+
+    &:hover {
+      background: var(--acu-surface-hover);
+    }
+  }
+}
+
+.acu-plan-chevron {
+  flex-shrink: 0;
+  color: var(--acu-text-muted);
+  transition: transform var(--acu-duration) var(--acu-easing);
+
+  &.is-open {
+    transform: rotate(180deg);
+  }
 }
 
 .acu-plan-icon {
@@ -250,6 +320,19 @@ function stepStatus(step: PlanStep): PlanStepStatus {
   font-size: var(--acu-font-size-2xs);
   color: var(--acu-text-muted);
   word-break: break-word;
+}
+
+// 折叠过渡（与 ThinkingBlock 同一套手感，只是节奏略快一点 ——
+// 计划块通常在工具组里，点开点收是高频动作）
+.acu-collapse-enter-active,
+.acu-collapse-leave-active {
+  transition: opacity var(--acu-duration-fast) var(--acu-easing),
+    transform var(--acu-duration-fast) var(--acu-easing);
+}
+.acu-collapse-enter-from,
+.acu-collapse-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 @keyframes acu-plan-pulse {

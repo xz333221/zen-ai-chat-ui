@@ -710,7 +710,11 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 | `title`       | `string`  | `计划` | 卡片标题 |
 | `progress`    | `boolean` | `true` | 标题右侧是否显示 `2/5` |
 | `progressBar` | `boolean` | `true` | 是否显示细进度条 |
+| `collapsible` | `boolean` | `true` | 标题行是否可点，收起 / 展开步骤清单 |
+| `defaultCollapsed` | `boolean` | `false` | 初始是否收起 |
 | `labels`      | `PlanLabels` | -  | 文案覆盖（走 i18n 的宿主传自己的翻译） |
+
+**清单可收起**：步骤多到十几条时会把气泡顶得很高，标题行整行是折叠开关（`button` + `aria-expanded`，带 `focus-visible` 描边）。收起后**标题、`2/5` 进度、细进度条都留着** —— 一行就能看完「还剩几步」，想看细节再点开。默认展开：计划是执行过程的一部分，摊开才看得到现在卡在哪一步。传 `collapsible: false` 可退化成纯展示卡片（标题行不再是按钮）。
 
 ```vue
 <!-- 英文界面 -->
@@ -718,6 +722,9 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
   :messages="messages"
   :plan-config="{ labels: { title: 'Plan', raw: 'Raw arguments' } }"
 />
+
+<!-- 一上来就收起的计划清单 -->
+<ChatContainer :messages="messages" :plan-config="{ defaultCollapsed: true }" />
 ```
 
 ## 消息操作栏
