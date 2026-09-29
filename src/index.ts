@@ -12,6 +12,7 @@ export { default as MessageBubble } from './components/MessageBubble/MessageBubb
 export { default as ThinkingBlock } from './components/ThinkingBlock/ThinkingBlock.vue'
 export { default as ToolCallBlock } from './components/ToolCallBlock/ToolCallBlock.vue'
 export { default as ToolCallGroup } from './components/ToolCallGroup/ToolCallGroup.vue'
+export { default as PlanBlock } from './components/PlanBlock/PlanBlock.vue'
 export { default as MessageActions } from './components/MessageActions/MessageActions.vue'
 export { default as WelcomeScreen } from './components/WelcomeScreen/WelcomeScreen.vue'
 export { default as ChatInput } from './components/ChatInput/ChatInput.vue'
@@ -35,6 +36,17 @@ export { useResolvedTheme } from './composables/useResolvedTheme'
 
 // 工具
 export { formatFileSize, isImageType, uid, formatDuration, formatTokens, formatClock } from './utils/format'
+
+// 计划（plan）解析：宿主拿原始工具参数就能得到规范步骤
+export {
+  isPlanTool,
+  parsePlanArgs,
+  parsePlanNote,
+  readPlan,
+  planProgress,
+  MAX_PLAN_STEPS
+} from './utils/plan'
+export type { ParsedPlan } from './utils/plan'
 
 // 内置 AI 品牌头像（由 scripts/build-avatars.mjs 生成）
 export {
@@ -66,6 +78,10 @@ export type {
   ToolCall,
   ToolCallStatus,
   ToolCallsConfig,
+  PlanStep,
+  PlanStepStatus,
+  PlanConfig,
+  PlanLabels,
   ThinkingConfig,
   MessageActionsConfig,
   TokenUsage,

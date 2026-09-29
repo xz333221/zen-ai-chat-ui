@@ -31,6 +31,54 @@ export interface ChatAttachment {
 /** 工具调用状态 */
 export type ToolCallStatus = 'pending' | 'running' | 'done' | 'error'
 
+/** 计划步骤状态 */
+export type PlanStepStatus = 'pending' | 'in_progress' | 'completed'
+
+/**
+ * 计划里的一个步骤。
+ *
+ * 字段名刻意用最短的 `content` / `status`——它同时也是 `parsePlanArgs()`
+ * 的归一化产物，宿主解析出来的和模型直接给的用同一套类型。
+ */
+export interface PlanStep {
+  /** 步骤文案 */
+  content: string
+  /** 步骤状态，缺省视为 `pending` */
+  status?: PlanStepStatus
+  /** 补充说明（可选，显示在步骤下方） */
+  note?: string
+}
+
+/** 计划块上可覆盖的文案（宿主要走 i18n 时传自己的翻译） */
+export interface PlanLabels {
+  /** 标题，默认「计划」 */
+  title?: string
+  /** 进度文案模板，`{done}` / `{total}` 会被替换；默认「{done}/{total}」 */
+  progress?: string
+  /** 展开查看原始参数的按钮文案，默认「原始参数」 */
+  raw?: string
+}
+
+/**
+ * 计划块展示配置。
+ */
+export interface PlanConfig {
+  /** 标题；不传则用 `labels.title` → 默认「计划」 */
+  title?: string
+  /**
+   * 是否展示标题右侧的进度（`2/5`）。
+   * @default true
+   */
+  progress?: boolean
+  /**
+   * 是否展示标题下方的细进度条。
+   * @default true
+   */
+  progressBar?: boolean
+  /** 文案覆盖 */
+  labels?: PlanLabels
+}
+
 /** 单个工具调用 */
 export interface ToolCall {
   /** 工具调用 id（对应 OpenAI tool_call_id） */
@@ -47,6 +95,16 @@ export interface ToolCall {
   status?: ToolCallStatus
   /** 错误信息 */
   error?: string
+  /**
+   * 计划步骤。
+   *
+   * 计划类工具（update_plan / TodoWrite …）会被渲染成带勾选态的清单，
+   * 而不是一坨 JSON。不传时 `ToolCallBlock` 会自己从 `arguments` 解析
+   * （见 `parsePlanArgs`），所以宿主只要把原始参数传进来即可。
+   */
+  plan?: PlanStep[]
+  /** 计划说明（模型对这次计划调整给出的解释） */
+  planNote?: string
 }
 
 /**

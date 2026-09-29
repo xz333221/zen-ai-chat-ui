@@ -238,6 +238,7 @@ import {
   resolveAvatar,
   type ChatMessage,
   type ChatAttachment,
+  type ToolCall,
   type ConversationItem,
   type PresetQuestion,
   type AskUserQuestion,
@@ -806,7 +807,8 @@ const presetQuestions: PresetQuestion[] = [
   { id: 'q6', label: '多工具调用折叠', prompt: '帮我排查一下项目报错' },
   { id: 'q7', label: '超长思考滚动', prompt: '帮我分析一下这段超长思考过程' },
   { id: 'q8', label: '多轮对话（侧边条）', prompt: '一次性铺出多轮对话，用来演示左侧那列消息条' },
-  { id: 'q9', label: '向用户提问（ask_user）', prompt: '演示提问面板：单选 / 多选 / 自由输入' }
+  { id: 'q9', label: '向用户提问（ask_user）', prompt: '演示提问面板：单选 / 多选 / 自由输入' },
+  { id: 'q10', label: '计划工具（update_plan）', prompt: '帮我把这个仓库的计划列出来' }
 ]
 
 // —— 提问面板演示 ——
@@ -1171,6 +1173,8 @@ async function onSend({ text, files }: { text: string; files: SelectedFile[] }) 
     await runMultiToolCallDemo(assistant)
   } else if (text === '帮我分析一下这段超长思考过程') {
     await runLongThinkingDemo(assistant)
+  } else if (text === '帮我把这个仓库的计划列出来') {
+    await runPlanToolDemo(assistant)
   } else {
     await runMockStream(assistant, text)
   }
@@ -1429,6 +1433,100 @@ async function runMultiToolCallDemo(msg: ChatMessage) {
     const content =
       '排查完成：根因是 **TailwindCSS v4** 的 `@tailwind` 指令在 v4 中已废弃，\n\n' +
       '已在 `src/styles/index.scss` 中改为 `@import "tailwindcss";`，构建通过 ✅'
+    for (const ch of content) {
+      streaming.append(msg, { type: 'content', delta: ch })
+      await sleep(8)
+    }
+    finishWithUsage(msg)
+  } catch (e) {
+    settle(msg, e)
+  } finally {
+    busy.value = false
+  }
+}
+
+// —— 演示：计划工具 update_plan（验证「计划常驻 + 三态勾选 + 折叠态不被折没」） ——
+async function runPlanToolDemo(msg: ChatMessage) {
+  busy.value = true
+  abortRequested = false
+  try {
+    await sleep(360)
+    msg.status = 'streaming'
+
+    msg.reasoningStatus = 'streaming'
+    const reasoning = '任务横跨组件库与宿主两处，先把要做的事拆成可核对的步骤，再逐步推进。'
+    for (const ch of reasoning) {
+      streaming.append(msg, { type: 'reasoning', delta: ch })
+      await sleep(6)
+    }
+    msg.reasoningStatus = 'done'
+    await sleep(150)
+
+    // 真实链路里 arguments 就是模型给的原始 JSON，这里保持一致（组件自己会解析）
+    const planArgs = (steps: unknown[], explanation: string) =>
+      JSON.stringify({ steps, explanation })
+
+    msg.toolCalls = [
+      {
+        id: uid('tc'),
+        name: 'update_plan',
+        argsPreview: '3 步 · 1 进行中',
+        arguments: planArgs(
+          [
+            { content: '读现有 ToolCallGroup 的折叠逻辑', status: 'completed' },
+            { content: '抽出 parsePlanArgs 并让计划块常驻', status: 'in_progress' },
+            { content: '宿主升级依赖并跑 tsc / build', status: 'pending' }
+          ],
+          '先让库自己认计划，再让宿主传原始参数。'
+        ),
+        status: 'done',
+        result: '已记录 3 步（1 进行中 / 1 完成 / 1 待办）'
+      }
+    ] as ToolCall[]
+
+    const others: Array<{ name: string; argsPreview: string; result: string }> = [
+      { name: 'read_file', argsPreview: 'path=src/components/ToolCallGroup/ToolCallGroup.vue', result: '// 折叠态只保留最新一个工具调用\n...' },
+      { name: 'edit_file', argsPreview: 'path=src/components/ToolCallGroup/ToolCallGroup.vue', result: 'ok（+18 −3）' },
+      { name: 'run_command', argsPreview: 'npm run type-check', result: '$ npm run type-check\n(exit 0)\n无类型错误' },
+      { name: 'run_command', argsPreview: 'npm run build', result: '$ npm run build\n(exit 0)\ndist/ai-chat-ui.es.js  312.40 kB' }
+    ]
+    for (const o of others) {
+      const tc: ToolCall = {
+        id: uid('tc'),
+        name: o.name,
+        argsPreview: o.argsPreview,
+        arguments: o.argsPreview,
+        status: 'running'
+      }
+      msg.toolCalls.push(tc)
+      await sleep(240)
+      tc.status = 'done'
+      tc.result = o.result
+    }
+
+    // 收尾再更新一次计划：状态流转要能看出来
+    await sleep(200)
+    const upd: ToolCall = {
+      id: uid('tc'),
+      name: 'update_plan',
+      argsPreview: '3 步 · 2 完成',
+      arguments: planArgs(
+        [
+          { content: '读现有 ToolCallGroup 的折叠逻辑', status: 'completed' },
+          { content: '抽出 parsePlanArgs 并让计划块常驻', status: 'completed' },
+          { content: '宿主升级依赖并跑 tsc / build', status: 'in_progress' }
+        ],
+        '库侧已经好了，现在切宿主。'
+      ),
+      status: 'done',
+      result: '已记录 3 步（2 完成 / 1 进行中）'
+    }
+    msg.toolCalls.push(upd)
+    await sleep(200)
+
+    const content =
+      '计划已更新：**3 步全部推进**，其中 2 步完成。\n\n' +
+      '注意计划块在工具组**折叠时依然常驻** —— 折叠只藏别的工具调用，不会把当前计划折没。'
     for (const ch of content) {
       streaming.append(msg, { type: 'content', delta: ch })
       await sleep(8)

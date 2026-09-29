@@ -4,8 +4,24 @@
     - 折叠式：默认收起，点击展开查看参数和结果
     - 状态图标：running 旋转、done 勾、error 叉
     - 工具名 + 参数预览 → 结果（可滚动）
+
+    计划类调用（update_plan / TodoWrite …）例外：它整块渲染成 PlanBlock 清单。
+    原始参数 JSON 仍可展开查看，但默认不展开 —— 一坨 JSON 对读计划没用。
   -->
-  <div class="acu-toolcall">
+  <div v-if="plan" class="acu-plan-wrap">
+    <PlanBlock
+      :steps="plan.steps"
+      :note="plan.note"
+      :status="status"
+      :config="planConfig"
+    />
+    <!-- 原始参数仍然可查：清单是给人看的，JSON 是给排查 / 复制用的 -->
+    <details v-if="toolCall.arguments" class="acu-plan-raw">
+      <summary>{{ rawLabel }}</summary>
+      <pre>{{ formatArgs(toolCall.arguments) }}</pre>
+    </details>
+  </div>
+  <div v-else class="acu-toolcall">
     <button
       type="button"
       class="acu-toolcall-header"
@@ -65,15 +81,31 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { ToolCall, ToolCallStatus } from '@/types'
+import type { PlanConfig, ToolCall, ToolCallStatus } from '@/types'
+import { readPlan } from '@/utils/plan'
+import PlanBlock from '@/components/PlanBlock/PlanBlock.vue'
 
-const props = defineProps<{
-  toolCall: ToolCall
-}>()
+const props = withDefaults(
+  defineProps<{
+    toolCall: ToolCall
+    /** 计划块展示配置（只在 plan 调用上生效） */
+    planConfig?: PlanConfig
+  }>(),
+  { planConfig: undefined }
+)
 
 const expanded = ref(false)
 
 const status = computed<ToolCallStatus>(() => props.toolCall.status || 'pending')
+
+/**
+ * 计划步骤：宿主挂了 `plan` 就用，没挂就自己从 arguments 解析。
+ * 两条路都留着，是因为外部执行器（claude / opencode 的 tool_use）那条链路
+ * 只带原始参数，宿主不一定来得及逐个工具名去适配。
+ */
+const plan = computed(() => readPlan(props.toolCall))
+
+const rawLabel = computed(() => props.planConfig?.labels?.raw || '原始参数')
 
 function formatArgs(args: string): string {
   try {
@@ -85,6 +117,58 @@ function formatArgs(args: string): string {
 </script>
 
 <style lang="scss" scoped>
+// 计划调用外面那层：清单 + 可展开的原始参数
+.acu-plan-wrap {
+  margin: var(--acu-space-1) 0;
+}
+
+.acu-plan-raw {
+  margin-top: calc(var(--acu-space-1) * -1 + 2px);
+  padding-left: var(--acu-space-2-5);
+  font-size: var(--acu-font-size-2xs);
+  color: var(--acu-text-muted);
+
+  summary {
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+    user-select: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &::before {
+      content: '▸';
+      transition: transform var(--acu-duration-fast) var(--acu-easing);
+    }
+  }
+
+  &[open] summary::before {
+    transform: rotate(90deg);
+  }
+
+  pre {
+    margin: var(--acu-space-1) 0 0;
+    padding: var(--acu-space-2) var(--acu-space-2-5);
+    background: var(--acu-surface);
+    border: 1px solid var(--acu-border);
+    border-radius: var(--acu-radius-xs);
+    font-family: var(--acu-font-mono);
+    font-size: var(--acu-font-size-2xs);
+    line-height: var(--acu-line-height-tight);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 240px;
+    overflow-y: auto;
+    color: var(--acu-text-secondary);
+    @include acu-scrollbar(5px);
+  }
+}
+
 .acu-toolcall {
   border: 1px solid var(--acu-border);
   border-radius: var(--acu-radius-sm);

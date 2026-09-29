@@ -50,6 +50,7 @@
     "build": "vue-tsc --noEmit && node scripts/build.mjs",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
+    "verify:plan": "node scripts/verify-plan-parse.mjs",
     "build:avatars": "node scripts/build-avatars.mjs",
     "release": "node scripts/release.js"
   },

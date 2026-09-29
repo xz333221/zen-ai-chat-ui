@@ -29,6 +29,7 @@
         :show-avatar="showAvatar"
         :followup="followup"
         :tool-calls-config="toolCallsConfig"
+        :plan-config="planConfig"
         :thinking-config="thinkingConfig"
         :actions-config="actionsConfig"
         :message-meta-config="messageMetaConfig"
@@ -77,6 +78,7 @@ import type {
   SelectedFile,
   FollowupInput,
   ToolCallsConfig,
+  PlanConfig,
   ThinkingConfig,
   MessageActionsConfig,
   MessageMetaConfig,
@@ -168,6 +170,14 @@ const props = withDefaults(
      */
     toolCallsConfig?: ToolCallsConfig
     /**
+     * 计划块展示配置。
+     *
+     * 计划类工具调用（`update_plan` / `TodoWrite` …）默认渲染成带勾选态的清单，
+     * 并在工具组折叠时保持常驻（折叠只会藏起别的工具调用，计划不会消失）。
+     * 走 i18n 的宿主在这里传自己的 `title` / `labels`。
+     */
+    planConfig?: PlanConfig
+    /**
      * 思考块展示配置。
      * 默认给思考正文加 320px 高度上限、超出后内部滚动（长思考不会把气泡撑得极高），
      * 并在流式输出时自动贴底跟随。传 `{ scrollable: false }` 可恢复为全部铺开。
@@ -224,6 +234,7 @@ const props = withDefaults(
     uploadConfig: () => ({}),
     followup: undefined,
     toolCallsConfig: undefined,
+    planConfig: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,

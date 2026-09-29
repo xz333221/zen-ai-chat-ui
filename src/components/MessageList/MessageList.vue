@@ -16,6 +16,7 @@
             :user-avatar="userAvatar"
             :show-avatar="showAvatar"
             :tool-calls-config="toolCallsConfig"
+            :plan-config="planConfig"
             :thinking-config="thinkingConfig"
             :actions-config="actionsConfig"
             :message-meta-config="messageMetaConfig"
@@ -67,6 +68,7 @@ import type {
   PresetQuestion,
   FollowupConfig,
   ToolCallsConfig,
+  PlanConfig,
   ThinkingConfig,
   MessageActionsConfig,
   MessageMetaConfig,
@@ -92,6 +94,8 @@ const props = withDefaults(
     followup?: FollowupConfig | PresetQuestion[]
     /** 工具调用展示配置（默认多个调用折叠成组、只展示最新一个） */
     toolCallsConfig?: ToolCallsConfig
+    /** 计划块展示配置（计划类工具调用的标题 / 进度 / 文案） */
+    planConfig?: PlanConfig
     /** 思考块展示配置（默认正文超高后内部滚动） */
     thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
@@ -108,6 +112,7 @@ const props = withDefaults(
     showAvatar: true,
     followup: undefined,
     toolCallsConfig: undefined,
+    planConfig: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,

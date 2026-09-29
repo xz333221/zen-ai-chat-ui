@@ -53,16 +53,27 @@
       </svg>
     </button>
 
-    <!-- 调用列表：折叠时只保留最新一个 -->
+    <!-- 调用列表：折叠时只保留最新一个（计划块另算，见下） -->
     <div class="acu-toolgroup-list">
-      <ToolCallBlock v-for="tc in visibleCalls" :key="tc.id" :tool-call="tc" />
+      <ToolCallBlock v-for="tc in visibleCalls" :key="tc.id" :tool-call="tc" :plan-config="planConfig" />
+    </div>
+
+    <!--
+      计划块常驻区。
+      折叠态只留「最新一个工具调用」，而计划往往不是最后那个（模型改完计划会去干别的）——
+      那样计划就被折没了，而计划正是最需要一直看着的东西。所以把它提出来单独渲染。
+      只取最新一份计划：连续多次 update_plan 留的是同一件事的快照，旧的全展示只会刷屏。
+    -->
+    <div v-if="pinnedPlan" class="acu-toolgroup-plan">
+      <ToolCallBlock :tool-call="pinnedPlan" :plan-config="planConfig" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type { ToolCall, ToolCallStatus, ToolCallsConfig } from '@/types'
+import type { PlanConfig, ToolCall, ToolCallStatus, ToolCallsConfig } from '@/types'
+import { readPlan } from '@/utils/plan'
 import ToolCallBlock from '@/components/ToolCallBlock/ToolCallBlock.vue'
 
 const props = withDefaults(
@@ -71,9 +82,12 @@ const props = withDefaults(
     toolCalls: ToolCall[]
     /** 展示配置 */
     config?: ToolCallsConfig
+    /** 计划块展示配置（透传给每个调用） */
+    planConfig?: PlanConfig
   }>(),
   {
-    config: undefined
+    config: undefined,
+    planConfig: undefined
   }
 )
 
@@ -99,8 +113,17 @@ function toggle() {
   expanded.value = !expanded.value
 }
 
+/** 折叠态钉住的那份计划（最新的那个计划调用）；展开态不钉，全量按序渲染 */
+const pinnedPlan = computed<ToolCall | null>(() => {
+  if (!grouped.value || expanded.value) return null
+  for (let i = props.toolCalls.length - 1; i >= 0; i--) {
+    if (readPlan(props.toolCalls[i])) return props.toolCalls[i]
+  }
+  return null
+})
+
 /**
- * 实际渲染出来的调用列表：折叠态只留最新一个。
+ * 实际渲染出来的调用列表：折叠态只留最新一个（计划块在下面单独渲染，这里要去重）。
  *
  * 为什么算好列表用 v-for，而不是给每一行挂 v-show（2026-09-29 改）：
  * v-show 打在**组件**上时，Vue 会把指令合并到该组件的根节点 vnode 上；而根节点是不是
@@ -110,9 +133,14 @@ function toggle() {
  * 症状就是"折叠只换文案，行一条不少"，而且只在生产包/正式版里出现 —— 踩过一次。
  * 顺带好处：折叠态 DOM 里只有 1 行，长任务（几十次调用）不再挂几十个隐藏节点。
  */
-const visibleCalls = computed(() =>
-  grouped.value && !expanded.value ? props.toolCalls.slice(-1) : props.toolCalls
-)
+const visibleCalls = computed(() => {
+  if (!grouped.value || expanded.value) return props.toolCalls
+  const last = props.toolCalls[props.toolCalls.length - 1]
+  const pinned = pinnedPlan.value
+  // 最后一个恰好就是被钉住的计划 → 交给下面的常驻区渲染，这里不再重复
+  if (pinned && last && last.id === pinned.id) return []
+  return last ? [last] : []
+})
 
 /** 聚合状态：running 优先，其次 error，最后 done */
 const stats = computed(() => {
@@ -151,6 +179,10 @@ const headerLabel = computed(() => {
 <style lang="scss" scoped>
 .acu-toolgroup {
   margin: var(--acu-space-1) 0;
+}
+
+.acu-toolgroup-plan {
+  margin-top: var(--acu-space-1);
 }
 
 .acu-toolgroup-header {
