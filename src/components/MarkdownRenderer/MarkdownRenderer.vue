@@ -126,6 +126,9 @@ function onCodeCopyClick(e: MouseEvent) {
 
   p {
     margin: 0 0 var(--acu-space-3);
+    // 抑制中文长段落最后一行只剩一两个字的「孤字」。
+    // Chromium 117+ / Safari 17.4+ 支持，其余引擎直接忽略 —— 纯渐进增强，无降级代价。
+    text-wrap: pretty;
   }
 
   h1,
@@ -137,6 +140,8 @@ function onCodeCopyClick(e: MouseEvent) {
     margin: var(--acu-space-6) 0 var(--acu-space-3);
     font-weight: 650;
     line-height: 1.3;
+    // 标题两行时按长度均分，避免「第一行塞满、第二行两个字」
+    text-wrap: balance;
   }
   h1 {
     font-size: 1.5em;
@@ -158,6 +163,7 @@ function onCodeCopyClick(e: MouseEvent) {
   }
   li {
     margin: var(--acu-space-1) 0;
+    text-wrap: pretty;
   }
   li::marker {
     color: var(--acu-text-muted);
@@ -203,10 +209,11 @@ function onCodeCopyClick(e: MouseEvent) {
 
   blockquote {
     margin: 0 0 var(--acu-space-3);
-    padding: var(--acu-space-1) var(--acu-space-4);
-    border-left: 3px solid var(--acu-primary);
+    // 原来是 3px 主色左边条 + 单侧圆角。粗色条是引述块最常见的模板化写法，
+    // 换成整块淡底 + 四角同圆角：一样一眼认得出是引用，但不再是贴上去的一条色带。
+    padding: var(--acu-space-3) var(--acu-space-4);
     background: var(--acu-primary-soft);
-    border-radius: 0 var(--acu-radius-sm) var(--acu-radius-sm) 0;
+    border-radius: var(--acu-radius);
     color: var(--acu-text-secondary);
     > *:last-child {
       margin-bottom: 0;
@@ -225,29 +232,34 @@ function onCodeCopyClick(e: MouseEvent) {
   }
 
   // 表格
+  // ⚠️ 这里不能用 display:block 换横向滚动：display:block 会把表格内部的网格降级成
+  // shrink-to-fit，表格只占内容列一半宽，与上下段落左边缘对不齐（实测 Chrome 153）。
+  // 所以保持 display:table + width:100%，靠单元格 overflow-wrap:anywhere 让长 token
+  // 自己换行 —— 表格因此永远不会顶破内容列，也就不需要横向滚动。
   table {
     width: 100%;
     margin: 0 0 var(--acu-space-3);
     border-collapse: collapse;
     font-size: 0.95em;
-    overflow: hidden;
-    border-radius: var(--acu-radius-sm);
-    display: block;
-    overflow-x: auto;
-    @include acu-scrollbar;
   }
   th,
   td {
     padding: var(--acu-space-2) var(--acu-space-3);
-    border: 1px solid var(--acu-border);
+    // 只留横向分隔线。原来「整格网格 + 斑马纹」是三重编码同一件事（这是另一个格子），
+    // 减到一条线后表格立刻透气，也从「Excel 截图」变回排版。
+    border-bottom: 1px solid var(--acu-border);
     text-align: left;
+    // anywhere 而不是 break-word：它会参与 min-content 计算，单元格因此能被压到
+    // 最小，表格在任何内容下都放得进内容列
+    overflow-wrap: anywhere;
   }
   th {
     background: var(--acu-surface);
     font-weight: 600;
+    border-bottom-color: var(--acu-border-strong);
   }
-  tbody tr:nth-child(2n) {
-    background: var(--acu-surface);
+  tbody tr:last-child td {
+    border-bottom: none;
   }
 
   img.acu-md-img {

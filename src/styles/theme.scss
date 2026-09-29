@@ -23,19 +23,24 @@
   color-scheme: light;
 
   // —— 基础色板 ——
-  --acu-bg: #ffffff;
-  --acu-surface: #f7f7f8;
-  --acu-surface-2: #ededf0;
-  --acu-surface-hover: #f0f0f3;
+  // 中性色统一往品牌蓝紫方向偏一点点（chroma ≈ 0.008）：纯 zinc 灰铺在大面积
+  // 白底上会显得「没调过」，这层几乎看不出的色偏是「被设计过」的手感来源。
+  --acu-bg: #fcfcfd;
+  --acu-surface: #f7f8fa;
+  --acu-surface-2: #eef0f4;
+  --acu-surface-hover: #f1f2f6;
 
   // —— 文字 ——
   --acu-text: #18181b;
-  --acu-text-secondary: #52525b;
-  --acu-text-muted: #a1a1aa;
+  --acu-text-secondary: #54545e;
+  // muted 主要落在 11-12px 的元信息上（时间戳 / token 数 / 工具参数 / 代码语言）。
+  // 原来的 #a1a1aa 对白底只有 2.6:1 —— 小字糊成一层灰雾，且过不了 WCAG AA。
+  // 压到 #74747e ≈ 4.5:1 后，这些「次要信息」才真正读得出来。
+  --acu-text-muted: #74747e;
 
   // —— 边框 ——
-  --acu-border: #e7e7ea;
-  --acu-border-strong: #d4d4d8;
+  --acu-border: #e8e9ef;
+  --acu-border-strong: #d6d8e0;
 
   // —— 主色 ——
   --acu-primary: #6366f1;
@@ -46,21 +51,26 @@
   --acu-primary-soft-hover: rgba(99, 102, 241, 0.14);
 
   // —— 气泡 ——
-  --acu-bubble-user-bg: #6366f1;
-  --acu-bubble-user-text: #ffffff;
-  --acu-bubble-assistant-bg: #f7f7f8;
+  // assistant 不再是「气泡」：回答直接落在页面底色上，靠留白、排版和字号层级
+  // 分块，而不是给每段回答套一个盒子。撤掉盒子之后整屏的呼吸感完全不同，
+  // 也从「聊天挂件」变回「产品」。
+  // 三个 token 都保留（消费方仍可覆盖回带底色的气泡），只是默认值改成透明。
+  --acu-bubble-assistant-bg: transparent;
   --acu-bubble-assistant-text: #18181b;
-  // assistant 气泡的内描边。浅色下 surface(#f7f7f8) 与 bg(#fff) 只差一点点，
-  // 不加描边时气泡边界几乎看不见；深色下描边是 transparent（对比度本来就够）。
-  --acu-bubble-assistant-border: #e7e7ea;
+  --acu-bubble-assistant-border: transparent;
+  // user 气泡从满饱和主色改成淡蓝紫底 + 深蓝紫字：主色退回「强调」的角色
+  // （占比 ≤10%），不再每条提问都刷一整块 #6366f1。
+  // 想换回实心主色风格，只需要改这两个值（配 --acu-primary-contrast 做字色）。
+  --acu-bubble-user-bg: #eceefe;
+  --acu-bubble-user-text: #312e81;
   // 气泡 / 追问卡的最大宽度（同一列，必须一致，否则左右边缘对不齐）
   --acu-bubble-max-width: min(680px, 78%);
 
   // —— 思考块 ——
-  --acu-thinking-bg: #fafafa;
-  --acu-thinking-text: #71717a;
-  --acu-thinking-border: #ececef;
-  --acu-thinking-icon: #a1a1aa;
+  --acu-thinking-bg: #f7f8fa;
+  --acu-thinking-text: #55555f;
+  --acu-thinking-border: #e8e9ef;
+  --acu-thinking-icon: #74747e;
 
   // —— 代码 ——
   --acu-code-bg: #f6f8fa;
@@ -77,15 +87,19 @@
   --acu-warning: #f59e0b;
 
   // —— 阴影 ——
-  --acu-shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.05);
-  --acu-shadow: 0 4px 16px rgba(24, 24, 27, 0.08);
-  --acu-shadow-lg: 0 12px 32px rgba(24, 24, 27, 0.12);
+  // 每档都是两层：近处一层收紧边缘、远处一层铺开扩散。单层同色阴影（尤其带
+  // 硬边的那种）是「廉价」最明显的信号，双层是「贵」在阴影上的分水岭。
+  --acu-shadow-sm: 0 1px 1px rgba(24, 24, 35, 0.03), 0 1px 2px rgba(24, 24, 35, 0.04);
+  --acu-shadow: 0 2px 4px rgba(24, 24, 35, 0.04), 0 6px 16px rgba(24, 24, 35, 0.07);
+  --acu-shadow-lg: 0 8px 24px rgba(24, 24, 35, 0.07), 0 20px 48px rgba(24, 24, 35, 0.1);
 
   // —— 圆角 ——
   --acu-radius-xs: 4px;
   --acu-radius-sm: 8px;
   --acu-radius: 12px;
-  --acu-radius-lg: 16px;
+  // 气泡 / 输入框用的那档从 16 提到 18：配合「assistant 无气泡」后，
+  // 用户气泡与输入框是画面里仅有的两块圆角实体，圆角大一点更松弛
+  --acu-radius-lg: 18px;
   --acu-radius-xl: 20px;
   --acu-radius-full: 9999px;
 
@@ -105,7 +119,11 @@
   --acu-space-8: 32px;
 
   // 相邻两轮问答之间的间距（消息列表的 flex gap）
-  --acu-turn-gap: var(--acu-space-5);
+  // 收到 16px：助手侧的「操作栏 + 元信息」行即使在 hover 隐藏时也占着 ~34px 高度，
+  // 已经替两轮之间留出了缓冲。原来 20px 是配「实心气泡」的（气泡本身有视觉重量），
+  // 气泡撤掉后这段空气会显得散。16 让「提问 → 回答」贴得紧、轮与轮之间分得开，
+  // 一紧一松正好把一轮对话的边界标出来。
+  --acu-turn-gap: var(--acu-space-4);
 
   // —— 字体 ——
   --acu-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
@@ -127,9 +145,13 @@
   --acu-line-height-relaxed: 1.7;
 
   // —— 动效 ——
-  --acu-duration-fast: 0.12s;
+  --acu-duration-fast: 0.15s;
   --acu-duration: 0.2s;
-  --acu-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  // easeOutQuint：起步快、尾巴长，减速自然收住。原来那条 cubic-bezier(.4,0,.2,1)
+  // 是 Material 的「标准曲线」，两头都带一点加速感，是「默认感」最重的一条缓动。
+  // ⚠️ 只适合一次性过渡（hover / 展开 / 入场）。循环脉冲动画（呼吸点、流式条）
+  // 必须显式写 ease-in-out —— 一条「快进慢出」的曲线套在往返关键帧上会变成抽搐。
+  --acu-easing: cubic-bezier(0.22, 1, 0.36, 1);
 
   // —— 布局 ——
   // 内容列宽度上限：开场白 / 消息列表 / 输入框共用同一列。
@@ -144,17 +166,19 @@
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --acu-bg: #18181b;
-  --acu-surface: #27272a;
-  --acu-surface-2: #34343a;
-  --acu-surface-hover: #2f2f35;
+  --acu-bg: #17171c;
+  --acu-surface: #24242b;
+  --acu-surface-2: #2f2f39;
+  --acu-surface-hover: #2a2a32;
 
   --acu-text: #f4f4f5;
-  --acu-text-secondary: #a1a1aa;
-  --acu-text-muted: #71717a;
+  --acu-text-secondary: #a5a5b0;
+  // 与浅色同一笔账：#71717a 对 #17171c 只有 3.6:1，小字同样过不了 AA。
+  // 深色下 muted 要比 secondary 更亮（深底上「更亮 = 更次要」），提到 5.8:1。
+  --acu-text-muted: #93939f;
 
-  --acu-border: #323236;
-  --acu-border-strong: #52525b;
+  --acu-border: #2b2b33;
+  --acu-border-strong: #55555f;
 
   --acu-primary: #818cf8;
   --acu-primary-hover: #6366f1;
@@ -163,17 +187,17 @@
   --acu-primary-soft: rgba(129, 140, 248, 0.14);
   --acu-primary-soft-hover: rgba(129, 140, 248, 0.22);
 
-  --acu-bubble-user-bg: #6366f1;
-  --acu-bubble-user-text: #ffffff;
-  --acu-bubble-assistant-bg: #27272a;
+  --acu-bubble-user-bg: #2b2f52;
+  --acu-bubble-user-text: #e4e7ff;
+  --acu-bubble-assistant-bg: transparent;
   --acu-bubble-assistant-text: #f4f4f5;
-  // 深色下 surface 与 bg 的明度差已经够分辨，描边反而会让气泡显得「框住」
+  // 深浅两色下 assistant 都不再有气泡边界，这个 token 保留只是为了不破坏契约
   --acu-bubble-assistant-border: transparent;
 
-  --acu-thinking-bg: #1f1f23;
-  --acu-thinking-text: #a1a1aa;
-  --acu-thinking-border: #2e2e33;
-  --acu-thinking-icon: #71717a;
+  --acu-thinking-bg: #1c1c22;
+  --acu-thinking-text: #a5a5b0;
+  --acu-thinking-border: #2b2b33;
+  --acu-thinking-icon: #93939f;
 
   --acu-code-bg: #0d1117;
   --acu-code-text: #e6edf3;
@@ -187,7 +211,7 @@
   --acu-success: #34d399;
   --acu-warning: #fbbf24;
 
-  --acu-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --acu-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --acu-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --acu-shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.32);
+  --acu-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 6px 16px rgba(0, 0, 0, 0.4);
+  --acu-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4), 0 20px 48px rgba(0, 0, 0, 0.5);
 }

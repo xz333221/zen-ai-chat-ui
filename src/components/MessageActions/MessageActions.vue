@@ -161,7 +161,9 @@ async function handleCopy() {
   height: 26px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: var(--acu-radius-xs);
+  // 26px 的图标按钮配 4px 圆角太「方」，改 8px；hover 只换底色、不动描边 ——
+  // 一排图标同时亮起主色 + 描边，比它们要表达的信息响得多
+  border-radius: var(--acu-radius-sm);
   background: transparent;
   color: var(--acu-text-muted);
   cursor: pointer;
@@ -175,13 +177,12 @@ async function handleCopy() {
   }
 
   &:hover {
-    color: var(--acu-primary);
+    color: var(--acu-text);
     background: var(--acu-surface-2);
-    border-color: var(--acu-border);
   }
 
   &:active {
-    color: var(--acu-primary-active);
+    color: var(--acu-text);
     background: var(--acu-surface-hover);
   }
 

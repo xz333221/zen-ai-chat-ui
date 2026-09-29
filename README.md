@@ -1028,6 +1028,7 @@ messages.value.push({
 :root {
   --acu-primary: #10b981;       /* 主色 */
   --acu-bubble-user-bg: #10b981;/* 用户气泡背景 */
+  --acu-bubble-user-text: #fff; /* 用户气泡文字（改成实色底时记得同步） */
   --acu-radius: 14px;           /* 圆角 */
 }
 ```
@@ -1038,14 +1039,29 @@ messages.value.push({
 | --- | --- | --- |
 | `--acu-max-width` | `min(100%, 920px)` | 内容列（开场白 / 消息列表 / 输入框）宽度上限；组件内传入的 `maxWidth` 会覆盖它 |
 | `--acu-bubble-max-width` | `min(680px, 78%)` | 气泡与追问卡的最大宽度（同一列，改一处两处对齐） |
-| `--acu-bubble-assistant-border` | `#e7e7ea` / 深色 `transparent` | assistant 气泡的内描边（用 inset 阴影实现，不占布局） |
-| `--acu-turn-gap` | `20px` | 相邻两轮问答之间的间距 |
+| `--acu-bubble-assistant-bg` | `transparent` | assistant 回答的底色。默认**没有气泡**，回答直接落在页面底色上 |
+| `--acu-bubble-assistant-border` | `transparent` | assistant 气泡的内描边（用 inset 阴影实现，不占布局） |
+| `--acu-turn-gap` | `16px` | 相邻两轮问答之间的间距 |
 | `--acu-space-0-5` `-1-5` `-2-5` `-3-5` | `2px` `6px` `10px` `14px` | 半步间距刻度 |
 | `--acu-font-size-2xs` / `-2xl` | `11px` / `22px` | 元信息等小字 / 开场白标题 |
 | `--acu-line-height-tight` / `-relaxed` | `1.5` / `1.7` | 单行控件 / 长文（思考、代码） |
 | `--acu-overlay-*` | 深色系 | 图片灯箱配色（定义在裸 `:root`，不随主题变化） |
 
 > `--acu-bubble-assistant-border` 用的是 `inset` 阴影而不是 `border`：加 `border` 会把气泡撑大 2px、整列跟着抖一下，inset 阴影贴着圆角画在里面，零布局影响。
+
+### 把 assistant 气泡「加回来」
+
+默认样式里回答侧没有气泡（Claude / ChatGPT 的做法：靠留白、排版和字号层级分块），
+user 侧是淡主色气泡。想要两边都有实体气泡的老样式，覆盖三个令牌即可，不用改组件：
+
+```css
+:root {
+  --acu-bubble-assistant-bg: var(--acu-surface);
+  --acu-bubble-assistant-border: var(--acu-border); /* 浅色下没有描边气泡会看不见 */
+  --acu-bubble-user-bg: var(--acu-primary);         /* 用户气泡回到实心主色 */
+  --acu-bubble-user-text: var(--acu-primary-contrast);
+}
+```
 
 ## 本地开发
 

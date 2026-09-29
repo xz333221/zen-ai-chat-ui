@@ -314,6 +314,9 @@ const showRetryAction = computed(() => {
   display: flex;
   gap: var(--acu-space-3);
   align-items: flex-start;
+  // 新消息入场：轻微上浮 + 淡入。只跑一次、只碰 transform/opacity，
+  // 不参与布局；base.scss 的 prefers-reduced-motion 规则会把它压成 0.01ms。
+  animation: acu-bubble-in 0.32s var(--acu-easing) both;
 
   // user 消息：整行靠右，头像在右侧（DOM 顺序不变）
   &.is-user {
@@ -326,6 +329,17 @@ const showRetryAction = computed(() => {
   // 首条 user（会话开头）不加，避免顶部凭空多一截空白。
   &.is-user:not(:first-child) {
     margin-top: var(--acu-space-2);
+  }
+}
+
+@keyframes acu-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -364,7 +378,8 @@ const showRetryAction = computed(() => {
   // 与气泡的间隔由 footer 自己负责：MessageActions 原本自带 margin-top，
   // 放进 flex 行后会连 margin 一起参与垂直居中，把操作栏压低 2px，
   // 和旁边的元信息文字对不齐。这里统一接管、把它归零。
-  margin-top: var(--acu-space-1);
+  // answer 侧气泡只剩 6px 下内边距，这里补 8px，操作栏到正文的间距才不至于贴脸。
+  margin-top: var(--acu-space-2);
 
   &.is-user {
     flex-direction: row-reverse;
@@ -405,8 +420,11 @@ const showRetryAction = computed(() => {
   }
 
   // 左侧头像：assistant
+  // 只留一层几乎看不出底色的浅盘 —— 回答侧已经不再是实心气泡，头像再压一块
+  // surface-2 灰饼就会喧宾夺主。user 侧（--right）保留主色淡底：
+  // 「哪条是我说的」由头像 + 气泡底色一起编码，视觉重心天然落在用户自己身上。
   &--left {
-    background: var(--acu-surface-2);
+    background: var(--acu-surface);
     color: var(--acu-text-secondary);
   }
 
@@ -433,7 +451,7 @@ const showRetryAction = computed(() => {
   font-size: var(--acu-font-size-xs);
   color: var(--acu-text-muted);
   margin-bottom: var(--acu-space-1);
-  padding-left: 2px;
+  // 不加左内边距：回答正文已经贴到内容列左边缘，这里再缩 2px 就对不齐了
 }
 
 .acu-bubble {
@@ -448,17 +466,19 @@ const showRetryAction = computed(() => {
   &.is-assistant {
     background: var(--acu-bubble-assistant-bg);
     color: var(--acu-bubble-assistant-text);
-    border-top-left-radius: var(--acu-radius-xs);
+    // 回答侧没有底色也没有描边，左右内边距一并去掉 —— 正文直接贴内容列左边缘，
+    // 与头像列、下方操作栏共用同一条起始线。竖向留 6px 是为了让首行文字的
+    // 视觉中心大致落在 32px 头像的中线上。
+    padding: var(--acu-space-1-5) 0;
     // 内描边而不是 border：加 border 会把气泡撑大 2px、整列跟着抖一下，
     // inset 阴影贴着 border-radius 画在里面，零布局影响。
-    // 浅色下这是气泡「能被看见」的关键（surface 与 bg 只差 3% 明度）。
+    // 默认值是 transparent；消费方覆盖 --acu-bubble-assistant-bg 时再配上描边即可。
     box-shadow: inset 0 0 0 1px var(--acu-bubble-assistant-border);
   }
 
   &.is-user {
     background: var(--acu-bubble-user-bg);
     color: var(--acu-bubble-user-text);
-    border-top-right-radius: var(--acu-radius-xs);
   }
 }
 

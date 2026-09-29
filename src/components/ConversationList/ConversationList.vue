@@ -433,7 +433,9 @@ const showEmptyHint = computed(() => !props.items.length && !props.loading)
   height: 6px;
   border-radius: var(--acu-radius-full);
   background: currentColor;
-  animation: acu-conv-pulse 1.2s var(--acu-easing) infinite;
+  // 循环脉冲用 ease-in-out，不用全局的 --acu-easing（那是给一次性过渡的
+  // 「快进慢出」曲线，套在往返关键帧上会抽搐）
+  animation: acu-conv-pulse 1.2s ease-in-out infinite;
 }
 
 @keyframes acu-conv-pulse {

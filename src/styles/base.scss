@@ -148,7 +148,9 @@
 
   .is-streaming & {
     color: var(--acu-primary);
-    animation: acu-pulse 2s var(--acu-easing) infinite;
+    // 循环脉冲显式写 ease-in-out：--acu-easing 是「快进慢出」的一次性过渡曲线，
+    // 套在 0%→50%→100% 的往返关键帧上会变成一跳一停的抽搐，而不是呼吸
+    animation: acu-pulse 2s ease-in-out infinite;
   }
 }
 
@@ -170,7 +172,9 @@
 
 .acu-thinking-body {
   padding: 0 var(--acu-space-3) var(--acu-space-3);
-  border-top: 1px dashed var(--acu-thinking-border);
+  // 原来是与外框同色的虚线。虚线边框在正文里读起来像「占位 / 未完成」，
+  // 换成一条极淡的实线，分隔感一样有，但不再有草稿味。
+  border-top: 1px solid var(--acu-thinking-border);
   color: var(--acu-thinking-text);
   font-size: var(--acu-font-size-sm);
   line-height: var(--acu-line-height-relaxed);

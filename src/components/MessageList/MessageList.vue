@@ -384,7 +384,9 @@ defineExpose({ scrollToBottom })
   max-width: var(--acu-max-width);
   width: 100%;
   margin: 0 auto;
-  padding: var(--acu-space-5) var(--acu-space-4) var(--acu-space-6);
+  // 首屏顶部给足 24px：assistant 不再是气泡之后，第一段回答直接顶在容器边上
+  // 会显得局促，顶部那口气全靠这段 padding
+  padding: var(--acu-space-6) var(--acu-space-4) var(--acu-space-6);
 }
 
 .acu-scroll-btn {

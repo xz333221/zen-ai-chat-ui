@@ -118,13 +118,15 @@ defineEmits<{
   width: 56px;
   height: 56px;
   border-radius: var(--acu-radius-lg);
-  background: linear-gradient(135deg, var(--acu-primary-soft), var(--acu-surface));
+  // 原来是 primary-soft → surface 的 135° 渐变 + 一层投影。渐变的两个端点明度
+  // 几乎一样，实际只是让色块「脏」了一点；换成单色淡底 + 品牌色图标，更干净，
+  // 也更符合空态该有的安静。
+  background: var(--acu-primary-soft);
   color: var(--acu-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-bottom: var(--acu-space-5);
-  box-shadow: var(--acu-shadow-sm);
 }
 
 .acu-welcome-title {
@@ -170,6 +172,13 @@ defineEmits<{
     box-shadow var(--acu-duration) var(--acu-easing),
     transform var(--acu-duration) var(--acu-easing);
   @include acu-focus-ring;
+
+  // 预设问题个数是奇数时（比如 9 个），双列网格右下角会空出一格 —— 一整块空白
+  // 让卡片区看起来「少了点什么」。让孤零零的最后一张横跨两列补上。
+  // 纯 CSS 判定（最后一个是奇数位），加减预设问题都不需要改代码。
+  &:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 
   &:hover {
     border-color: var(--acu-primary);

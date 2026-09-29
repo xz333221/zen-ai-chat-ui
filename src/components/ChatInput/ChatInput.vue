@@ -347,17 +347,21 @@ defineExpose({
   max-width: var(--acu-max-width);
   width: 100%;
   margin: 0 auto;
-  background: var(--acu-surface);
+  // 白底 + 描边 + 一层极淡阴影，而不是 --acu-surface 灰底：灰底在白页面上
+  // 是一块「填色」，白底描边才像一张轻轻浮起来的卡片，视觉重量低得多。
+  background: var(--acu-bg);
   border: 1px solid var(--acu-border);
   border-radius: var(--acu-radius-lg);
   padding: var(--acu-space-2);
+  box-shadow: var(--acu-shadow-sm);
   transition: border-color var(--acu-duration) var(--acu-easing),
     box-shadow var(--acu-duration) var(--acu-easing),
     background-color var(--acu-duration) var(--acu-easing);
 
   &:focus-within {
     border-color: var(--acu-primary);
-    box-shadow: 0 0 0 3px var(--acu-primary-soft);
+    // 叠上卡片本身那层阴影，否则聚焦瞬间「浮起来」的感觉会掉下去、像塌了一下
+    box-shadow: 0 0 0 3px var(--acu-primary-soft), var(--acu-shadow-sm);
   }
 
   &.is-dragging {
@@ -471,15 +475,17 @@ defineExpose({
 
 .acu-input-icon-btn {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  // 34px 圆形：容器圆角是 18px，里面再放 8px 圆角的方块会形成两套圆角语言，
+  // 一眼看着「没对齐」。全圆是能和任意容器圆角和平共处的那一档。
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: none;
   background: transparent;
   color: var(--acu-text-muted);
-  border-radius: var(--acu-radius-sm);
+  border-radius: var(--acu-radius-full);
   cursor: pointer;
   transition: background-color var(--acu-duration-fast) var(--acu-easing),
     color var(--acu-duration-fast) var(--acu-easing);
@@ -499,7 +505,7 @@ defineExpose({
 
 .acu-input-textarea {
   flex: 1;
-  min-height: 36px;
+  min-height: 34px;
   max-height: 200px;
   padding: var(--acu-space-2) var(--acu-space-1);
   border: none;
@@ -522,15 +528,16 @@ defineExpose({
 
 .acu-input-send {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: none;
   background: var(--acu-primary);
   color: var(--acu-primary-contrast);
-  border-radius: var(--acu-radius-sm);
+  // 与左侧图标按钮同为全圆，输入框右下角因此只有一个「圆」的收尾
+  border-radius: var(--acu-radius-full);
   cursor: pointer;
   transition: background-color var(--acu-duration-fast) var(--acu-easing),
     color var(--acu-duration-fast) var(--acu-easing),

@@ -330,7 +330,8 @@ defineExpose({ hovering })
   }
 
   &.is-streaming {
-    animation: acu-rail-pulse 1.2s var(--acu-easing) infinite;
+    // ease-in-out 而非全局 --acu-easing：往返关键帧需要对称曲线才是「呼吸」
+    animation: acu-rail-pulse 1.2s ease-in-out infinite;
   }
 }
 

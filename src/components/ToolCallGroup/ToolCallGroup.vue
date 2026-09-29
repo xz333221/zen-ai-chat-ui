@@ -160,7 +160,9 @@ const headerLabel = computed(() => {
   width: 100%;
   padding: var(--acu-space-1-5) var(--acu-space-2-5);
   margin-bottom: var(--acu-space-1);
-  border: 1px dashed var(--acu-border);
+  // 原来是虚线边框（用「虚线 = 还没展开」当语义载体）。虚线在正文里读起来像
+  // 未完成的占位，改成实线；展开与否交给左侧 chevron 和底色表达
+  border: 1px solid var(--acu-border);
   border-radius: var(--acu-radius-sm);
   background: transparent;
   cursor: pointer;
@@ -173,11 +175,10 @@ const headerLabel = computed(() => {
 
   &:hover {
     background: var(--acu-surface-2);
-    border-color: var(--acu-primary);
+    border-color: var(--acu-border-strong);
   }
 
   &.is-expanded {
-    border-style: solid;
     background: var(--acu-surface-2);
   }
 }
