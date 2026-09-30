@@ -52,9 +52,14 @@ export default defineConfig({
       fileName: (format) => `ai-chat-ui.${format}.js`
     },
     rollupOptions: {
-      // vue 作为 peerDependency；markdown-it / shiki 作为 dependency，
-      // 均不打包进产物，由消费方安装。避免 UMD 体积爆炸（Shiki 语言 grammar）
-      external: ['vue', 'markdown-it', 'shiki'],
+      // vue 作为 peerDependency；markdown-it / shiki / mermaid 作为 dependency，
+      // 均不打包进产物，由消费方安装。避免 UMD 体积爆炸（Shiki 语言 grammar、
+      // mermaid 的 d3/dagre/cytoscape 全家桶）
+      //
+      // mermaid 是**动态** import（只在真的遇到 ```mermaid 时才加载），external 之后
+      // 这行 import() 会原样留在产物里，打包器据此给它单独切一个 chunk —— 也就是
+      // 「不出流程图的宿主不付这份体积」。
+      external: ['vue', 'markdown-it', 'shiki', 'mermaid'],
       output: {
         globals: {
           vue: 'Vue',

@@ -33,6 +33,23 @@ export {
 } from './composables/useMarkdown'
 export { useStreaming, resetStreamTiming } from './composables/useStreaming'
 export { useResolvedTheme } from './composables/useResolvedTheme'
+// 图表（```mermaid）：渲染管线是懒加载的，这里只导出配置与手动补渲染的口子
+export {
+  setMermaidConfig,
+  isMermaidEnabled,
+  isMermaidReady,
+  renderMermaid,
+  renderMermaidBlocks,
+  mermaidLabels,
+  mermaidTypeLabel,
+  isMermaidLang,
+  resolveMermaidTheme,
+  observeMermaidTheme,
+  toggleMermaidSource,
+  MERMAID_LANGS,
+  MERMAID_SELECTOR,
+  MERMAID_TYPE_NAMES
+} from './composables/useMermaid'
 
 // 工具
 export { formatFileSize, isImageType, uid, formatDuration, formatTokens, formatClock } from './utils/format'
@@ -101,6 +118,10 @@ export type {
   StreamChunkType,
   StreamChunk,
   ThemeMode,
+  MermaidBlockConfig,
+  MermaidLabels,
+  MermaidThemeVariables,
+  MermaidState,
   UploadConfig,
   SelectedFile
 } from './types'

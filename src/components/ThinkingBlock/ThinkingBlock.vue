@@ -75,7 +75,7 @@
         @mouseenter="onBodyEnter"
         @mouseleave="onBodyLeave"
       >
-        <MarkdownRenderer :source="content" />
+        <MarkdownRenderer :source="content" :streaming="!!streaming" />
         <span v-if="streaming && content" class="acu-cursor" aria-hidden="true"></span>
       </div>
     </transition>

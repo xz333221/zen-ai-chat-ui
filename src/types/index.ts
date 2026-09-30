@@ -541,6 +541,56 @@ export interface StreamChunk {
 /** 主题模式 */
 export type ThemeMode = 'light' | 'dark'
 
+/** 图表块的渲染状态（写在 `data-state` 上，样式按它切显隐） */
+export type MermaidState = 'pending' | 'streaming' | 'rendering' | 'done' | 'error'
+
+/**
+ * 图表块可覆盖的文案。
+ * 默认值是中文（与库内其它组件一致），宿主走 i18n 时用 `setMermaidConfig({ labels })` 覆盖。
+ */
+export interface MermaidLabels {
+  /** 切到源码视图的按钮文案，默认「源码」 */
+  source?: string
+  /** 切回图表视图的按钮文案，默认「图表」 */
+  chart?: string
+  /** 流式输出中占位文案，默认「正在生成图表…」 */
+  loading?: string
+  /** 渲染失败时跟在源码前的说明，默认「图表渲染失败，已显示源码」 */
+  error?: string
+}
+
+/** mermaid 主题变量（键即 mermaid 的 themeVariables 键名） */
+export type MermaidThemeVariables = Record<string, string>
+
+/**
+ * 图表（```mermaid）渲染配置。
+ * 通过 `setMermaidConfig()` 设置，全局生效；不配置就是「默认开、跟随组件库配色」。
+ */
+export interface MermaidBlockConfig {
+  /**
+   * 是否渲染图表。关掉后 ```mermaid 退回普通代码块（源码仍可见）
+   * @default true
+   */
+  enabled?: boolean
+  /**
+   * 按主题覆盖 mermaid 的 themeVariables。
+   * 默认从 `--acu-*` 令牌取色（宿主换肤时图表跟着变），读不到时用内置兜底色板。
+   */
+  themeVariables?: { light?: MermaidThemeVariables; dark?: MermaidThemeVariables }
+  /**
+   * 透传给 `mermaid.initialize()` 的其它配置（`flowchart` / `securityLevel` / `fontFamily`…）。
+   *
+   * ⚠️ `securityLevel` 默认 `'strict'`（SVG 经 DOMPurify 清洗）。模型输出是不可信内容，
+   * 改成 `'loose'` 会放行 SVG 里的 HTML/事件属性，请只在完全可信的来源下这么做。
+   */
+  options?: Record<string, unknown>
+  /** 文案覆盖 */
+  labels?: MermaidLabels
+  /** 图表类型标题覆盖，键见 `MERMAID_TYPE_NAMES`（如 `{ flowchart: '流程' }`） */
+  typeNames?: Record<string, string>
+}
+
+
 /** 附件上传配置 */
 export interface UploadConfig {
   /** 是否启用附件上传 */

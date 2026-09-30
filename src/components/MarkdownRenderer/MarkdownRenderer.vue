@@ -2,39 +2,79 @@
   <!--
     Markdown 渲染容器。
     - v-html 输出 markdown-it 解析结果（已禁原始 HTML，安全）
-    - 事件委托处理代码块复制按钮
+    - 事件委托处理代码块复制按钮 / 图表「源码」切换
     - 样式为非 scoped（带 .acu-md 前缀隔离），因 v-html 内容无法被 scoped 命中
   -->
   <div
     ref="root"
     class="acu-md"
     v-html="html"
-    @click="onCodeCopyClick"
+    @click="onClick"
     @mouseover="onThinkingOver"
     @mouseout="onThinkingOut"
   ></div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useMarkdown, isShikiReady } from '@/composables/useMarkdown'
+import {
+  observeMermaidTheme,
+  renderMermaidBlocks,
+  toggleMermaidSource
+} from '@/composables/useMermaid'
 
-const props = defineProps<{
-  /** Markdown 源文本 */
-  source: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** Markdown 源文本 */
+    source: string
+    /**
+     * 正文是否仍在流式输出。
+     *
+     * 只影响 ```mermaid 图表：流式期间挂占位态不画图（half-baked 的源码要么报错、
+     * 要么画出一张错的图），等翻回 false 再一次性画出来。宿主不传也不会坏，
+     * 只是图表会在每次增量后重试渲染。
+     * @default false
+     */
+    streaming?: boolean
+  }>(),
+  { streaming: false }
+)
 
 const { render } = useMarkdown()
 const html = ref('')
 const root = ref<HTMLElement | null>(null)
 
 let rafId = 0
+let hydrateTimer = 0
+
+/**
+ * 图表补渲染的合并延迟。
+ *
+ * 正文在流式期间每帧都会重建，图表块跟着一起重建；不合并的话每个新出现的块都会
+ * 立刻发起一次 mermaid 渲染。120ms 足以把同一批 DOM 变化并成一次，肉眼无感。
+ */
+const HYDRATE_DELAY = 120
+
+function hydrate() {
+  renderMermaidBlocks(root.value, { streaming: props.streaming })
+}
+
+function scheduleHydrate(delay = HYDRATE_DELAY) {
+  window.clearTimeout(hydrateTimer)
+  hydrateTimer = window.setTimeout(() => {
+    hydrateTimer = 0
+    hydrate()
+  }, delay)
+}
 
 function scheduleRender() {
   cancelAnimationFrame(rafId)
   // 用 rAF 节流：流式高频追加时，每帧最多渲染一次
   rafId = requestAnimationFrame(() => {
     html.value = render(props.source)
+    // v-html 的内容要等本次 patch 完才进 DOM，nextTick 之后再去找图表块
+    nextTick(() => scheduleHydrate())
   })
 }
 
@@ -47,8 +87,28 @@ watch(
 watch(isShikiReady, (ready) => {
   if (ready) scheduleRender()
 })
+// 流式结束 → 把期间搁置的图表画出来
+watch(
+  () => props.streaming,
+  (streaming) => {
+    if (!streaming) scheduleHydrate(0)
+  }
+)
 
-onBeforeUnmount(() => cancelAnimationFrame(rafId))
+// 图表 SVG 的配色是烘进 SVG 的（不像正文那样走 CSS 变量），换主题要重画一遍；
+// 缓存按主题分键，来回切只会各画一次
+let stopThemeObserver: (() => void) | null = null
+onMounted(() => {
+  stopThemeObserver = observeMermaidTheme(root.value, () => {
+    scheduleHydrate(0)
+  })
+})
+
+onBeforeUnmount(() => {
+  cancelAnimationFrame(rafId)
+  window.clearTimeout(hydrateTimer)
+  stopThemeObserver?.()
+})
 
 // —— 思考块滚动条的悬停显现 —— //
 // v-html 里的 <think> 块没有 Vue 生命周期，挂不上 @mouseenter，只能委托。
@@ -76,32 +136,43 @@ function onThinkingOut(e: Event) {
   body.classList.remove('is-scrollbar-visible')
 }
 
-// 代码块复制：事件委托
-function onCodeCopyClick(e: MouseEvent) {
-  const target = (e.target as HTMLElement).closest(
-    '.acu-code-copy'
-  ) as HTMLElement | null
+// 复制 / 图表视图切换：都是 v-html 里的按钮，只能走事件委托
+function onClick(e: MouseEvent) {
+  const target = e.target as HTMLElement | null
   if (!target) return
-  const encoded = target.getAttribute('data-code') || ''
+
+  const toggle = target.closest('.acu-mermaid-toggle')
+  if (toggle) {
+    toggleMermaidSource(toggle.closest<HTMLElement>('.acu-mermaid'))
+    return
+  }
+  onCodeCopyClick(target)
+}
+
+// 代码块复制：事件委托
+function onCodeCopyClick(target: HTMLElement) {
+  const btn = target.closest('.acu-code-copy') as HTMLElement | null
+  if (!btn) return
+  const encoded = btn.getAttribute('data-code') || ''
   const code = decodeURIComponent(encoded)
-  const label = target.querySelector('.acu-code-copy-label')
+  const label = btn.querySelector('.acu-code-copy-label')
   const write =
     navigator.clipboard?.writeText(code) ??
     Promise.reject(new Error('clipboard unavailable'))
   write
     .then(() => {
-      target.classList.add('is-copied')
+      btn.classList.add('is-copied')
       if (label) label.textContent = '已复制'
       setTimeout(() => {
-        target.classList.remove('is-copied')
+        btn.classList.remove('is-copied')
         if (label) label.textContent = '复制'
       }, 1500)
     })
     .catch(() => {
-      target.classList.add('is-error')
+      btn.classList.add('is-error')
       if (label) label.textContent = '失败'
       setTimeout(() => {
-        target.classList.remove('is-error')
+        btn.classList.remove('is-error')
         if (label) label.textContent = '复制'
       }, 1500)
     })
@@ -361,6 +432,158 @@ function onCodeCopyClick(e: MouseEvent) {
   // 降级代码块（无高亮）
   .acu-code-fallback {
     color: var(--acu-code-text);
+  }
+
+  // —— 图表块（```mermaid） ——
+  //
+  // 刻意和代码块共用一套骨架（34px 头 + 发丝边 + 12px 圆角）：模型经常一条消息里
+  // 又给图又给码，两者上下相邻时应该看起来是一家人，而不是「图是图、码是码」。
+  //
+  // 显隐由两个 data 属性决定，都在 fence 输出的 HTML 上，由 useMermaid 的补渲染
+  // 直接改 dataset（不经过 Vue，加不了 class）：
+  //   data-state：pending / streaming / rendering（占位）· done（画好了）· error（降级源码）
+  //   data-view ：chart（图）· source（源码，用户点的或失败降级）
+  .acu-mermaid {
+    margin: 0 0 var(--acu-space-3);
+    border: 1px solid var(--acu-border);
+    border-radius: var(--acu-radius);
+    background: var(--acu-card-bg);
+    overflow: hidden;
+  }
+
+  .acu-mermaid-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--acu-space-2);
+    height: 34px;
+    padding: 0 var(--acu-space-3);
+    background: var(--acu-code-header-bg);
+    border-bottom: 1px solid var(--acu-border);
+  }
+
+  .acu-mermaid-type {
+    font-size: var(--acu-font-size-xs);
+    color: var(--acu-text-muted);
+    letter-spacing: 0.02em;
+  }
+
+  .acu-mermaid-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--acu-space-1);
+  }
+
+  // 和 .acu-code-copy 同一档按钮（后者样式在下面，图表头里复用同一个类）
+  .acu-mermaid-toggle {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--acu-space-1) var(--acu-space-2);
+    border: none;
+    background: transparent;
+    color: var(--acu-text-muted);
+    font-size: var(--acu-font-size-xs);
+    font-family: inherit;
+    border-radius: var(--acu-radius-xs);
+    cursor: pointer;
+    transition: background-color var(--acu-duration-fast) var(--acu-easing),
+      color var(--acu-duration-fast) var(--acu-easing);
+
+    &:hover {
+      background: var(--acu-surface-2);
+      color: var(--acu-text);
+    }
+    &:active {
+      background: var(--acu-surface-hover);
+    }
+  }
+
+  .acu-mermaid-hint {
+    display: none;
+    align-items: center;
+    gap: var(--acu-space-2);
+    padding: var(--acu-space-4);
+    color: var(--acu-text-muted);
+    font-size: var(--acu-font-size-sm);
+  }
+
+  .acu-mermaid-canvas {
+    display: none;
+    padding: var(--acu-space-4);
+    overflow-x: auto;
+    @include acu-scrollbar(8px);
+
+    svg {
+      display: block;
+      margin: 0 auto;
+      // ⚠️ 这里**不要**给 svg 加 max-width / width / height。
+      // mermaid 自己已经把尺寸写进行内：`width="100%"` + `style="max-width: Npx"`
+      // （N 是这张图的自然宽度）+ `viewBox`。三者配合的效果正好是「比内容列窄就
+      // 原尺寸居中、比内容列宽才等比缩小」。
+      // 实测（Chromium）：一旦用 max-width: 100% !important 压掉那个 N，
+      // 窄图会被拉满内容列 —— 232px 宽的流程图被放大 2.8 倍，字比正文还大。
+    }
+  }
+
+  .acu-mermaid-source {
+    display: none;
+    margin: 0;
+    padding: var(--acu-space-4);
+    background: var(--acu-code-bg);
+    color: var(--acu-code-text);
+    font-family: var(--acu-font-mono);
+    font-size: var(--acu-font-size-sm);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-x: auto;
+    @include acu-scrollbar(8px);
+
+    code {
+      font-family: inherit;
+      background: none;
+      padding: 0;
+    }
+  }
+
+  // 占位态：只有一句「正在生成图表…」，画布和源码都不露
+  .acu-mermaid[data-state='pending'],
+  .acu-mermaid[data-state='streaming'],
+  .acu-mermaid[data-state='rendering'] {
+    .acu-mermaid-hint {
+      display: flex;
+    }
+  }
+
+  .acu-mermaid[data-state='done'] .acu-mermaid-canvas {
+    display: block;
+  }
+
+  // 渲染失败：源码顶上（data-view 被补渲染改成 source），上面留一句说明
+  .acu-mermaid[data-state='error'] {
+    .acu-mermaid-hint {
+      display: flex;
+      // 失败不是「进行中」，三点动画在这个状态里是错的信号
+      .acu-typing-dots {
+        display: none;
+      }
+    }
+  }
+
+  // 视图切换：源码视图顶掉画布
+  .acu-mermaid[data-view='source'] {
+    .acu-mermaid-canvas {
+      display: none;
+    }
+    .acu-mermaid-source {
+      display: block;
+    }
+  }
+
+  // 还没画出图（或压根没图）时没有源码可切，藏掉切换按钮，只留复制
+  .acu-mermaid[data-state='pending'] .acu-mermaid-toggle,
+  .acu-mermaid[data-state='streaming'] .acu-mermaid-toggle,
+  .acu-mermaid[data-state='rendering'] .acu-mermaid-toggle {
+    display: none;
   }
 }
 </style>

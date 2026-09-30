@@ -1,6 +1,6 @@
 # zen-ai-chat-ui
 
-一个精美的大模型对话 UI 组件库，基于 Vue 3 + TypeScript。支持流式输出、思考过程折叠、Markdown 渲染（Shiki 代码高亮）、附件上传、工具调用折叠、浅色/深色双主题。可发布到 NPM，供其他项目安装复用。
+一个精美的大模型对话 UI 组件库，基于 Vue 3 + TypeScript。支持流式输出、思考过程折叠、Markdown 渲染（Shiki 代码高亮）、Mermaid 流程图 / 时序图、附件上传、工具调用折叠、浅色/深色双主题。可发布到 NPM，供其他项目安装复用。
 
 ## 特性
 
@@ -15,6 +15,7 @@
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
 - **运行元信息**：可选在气泡下方展示回答耗时、首字延迟、token 用量（`1.2s · 510ms · ↑26 ↓571`），耗时由 `useStreaming` 自动计时；与操作栏同步悬停显示（可设常显）
 - **Markdown 渲染**：基于 markdown-it + Shiki，双主题代码高亮、表格、引用、任务列表，代码块带语言标签与一键复制
+- **Mermaid 图表**：`` ```mermaid `` 代码块直接画成流程图 / 时序图 / 状态图…（跟随主题配色、可切源码、语法错误退回源码），mermaid 本体只在真出图时才动态加载
 - **附件上传**：点击 / 拖拽，图片缩略图 + 文件卡片，可移除；图片点击可放大预览（灯箱：左右切换 / 键盘导航 / 点背景关闭）
 - **消息侧边条**：消息列表左边缘一列短横条，**一轮问答一根**，条宽反映这一轮的篇幅；静止时低透明不打扰，悬停浮出「提问 + 回答摘要」，点击跳到该轮提问
 - **开场白 + 预设问题**：首屏欢迎语 + 可点击的话题卡片
@@ -32,7 +33,8 @@ npm install zen-ai-chat-ui
 pnpm add zen-ai-chat-ui
 ```
 
-`vue` 为 peerDependency，需 >= 3.3。`markdown-it` 与 `shiki` 为 dependency，会自动安装。
+`vue` 为 peerDependency，需 >= 3.3。`markdown-it`、`shiki`、`mermaid` 为 dependency，会自动安装
+（`mermaid` 只在真的渲染图表时才被 `import()`，不进首屏体积，见下文「图表（Mermaid）」）。
 
 ## 快速开始
 
@@ -726,6 +728,82 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 <!-- 一上来就收起的计划清单 -->
 <ChatContainer :messages="messages" :plan-config="{ defaultCollapsed: true }" />
 ```
+
+## 图表（Mermaid）
+
+模型要画流程图，标准做法就是吐一个 ` ```mermaid ` 代码块。以前它会被当成未知语言，降级成一坨源码；
+现在库直接把它**画出来**：
+
+![Mermaid 流程图渲染](docs/mermaid-light.png)
+
+- 语言是 `mermaid`（或老缩写 `mmd`）就自动走图表链路，宿主不用做任何事
+- 图头一行：类型标题（流程图 / 时序图 / 状态图… 按源码首个关键字自动判断）、复制源码、**源码 / 图表**切换
+- 配色 / 字号取自 `--acu-*` 令牌 —— 宿主换肤时图跟着一起变；深浅色切换会自动重画（缓存按主题分键，来回切只画一次）
+- **流式输出期间只挂「正在生成图表…」占位，等这一轮答完再画**：半截源码要么报语法错、要么画出一张错的图
+- 画不出来也不白屏：自动退回源码 + 一句说明（鼠标悬停能看到 mermaid 的原始报错）
+
+![语法错误时退回源码显示](docs/mermaid-fallback.png)
+
+![深色主题下的流程图](docs/mermaid-dark.png)
+
+### 体积与加载
+
+`mermaid` 是 dependency（`npm install` 会一起装上），但库**只在真的遇到 `mermaid` 代码块时才 `import()`**，
+打包器会因此给它单独切一个 chunk —— 从不输出流程图的宿主不付这份体积。
+
+> UMD（`<script>` 直引，没有打包器）场景下动态 `import()` 会失败，此时图表块降级成源码显示，其余功能不受影响。
+
+### `setMermaidConfig()`
+
+```ts
+import { setMermaidConfig } from 'zen-ai-chat-ui'
+
+// 1) 整个关掉：```mermaid 退回普通代码块（源码仍然可见）
+setMermaidConfig({ enabled: false })
+
+// 2) 覆盖配色（不覆盖就跟随 --acu-* 令牌）
+setMermaidConfig({
+  themeVariables: {
+    light: { primaryColor: '#e0e7ff', primaryBorderColor: '#4f46e5' },
+    dark: { primaryColor: '#26263a', primaryBorderColor: '#818cf8' }
+  }
+})
+
+// 3) 透传 mermaid.initialize 的其它配置
+setMermaidConfig({ options: { flowchart: { curve: 'basis' } } })
+
+// 4) 英文界面
+setMermaidConfig({
+  labels: { source: 'Code', chart: 'Diagram', loading: 'Rendering…', error: 'Render failed, showing source' }
+})
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+| ---- | ---- | ------ | ---- |
+| `enabled` | `boolean` | `true` | 关掉后 `mermaid` 代码块退回普通代码块 |
+| `themeVariables` | `{ light?, dark? }` | - | 覆盖 mermaid 主题变量；默认按 `--acu-*` 令牌取色，令牌读不到时用内置兜底色板 |
+| `options` | `object` | - | 透传 `mermaid.initialize()`。⚠️ `securityLevel` 默认 `'strict'`（SVG 经 DOMPurify 清洗），模型输出是不可信内容，不要改成 `'loose'` |
+| `labels` | `MermaidLabels` | 中文 | 文案覆盖 |
+| `typeNames` | `Record<string, string>` | 内置 | 图表类型标题覆盖（键见 `MERMAID_TYPE_NAMES`） |
+
+### 单独使用
+
+图表补渲染由 `<MarkdownRenderer>` 在 DOM 更新后自己完成，传了 `source` 就行；
+流式场景把 `streaming` 一起传上（不传也能用，只是每来一段增量就重试渲染一次，会看到中间态）：
+
+```vue
+<MarkdownRenderer :source="text" :streaming="isStreaming" />
+```
+
+宿主自己 `v-html` 渲染（不经该组件）时，可以手动补一次：
+
+```ts
+import { renderMermaidBlocks } from 'zen-ai-chat-ui'
+
+renderMermaidBlocks(document.querySelector('#chat-body'), { streaming: false })
+```
+
+其余导出：`isMermaidEnabled` / `isMermaidReady` / `renderMermaid` / `toggleMermaidSource` / `mermaidTypeLabel` / `isMermaidLang` / `MERMAID_TYPE_NAMES`。
 
 ## 消息操作栏
 

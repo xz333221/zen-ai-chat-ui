@@ -6,6 +6,7 @@
 import { ref, type Ref } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { createHighlighter, type Highlighter } from 'shiki'
+import { isMermaidEnabled, isMermaidLang, mermaidLabels, mermaidTypeLabel } from './useMermaid'
 
 // 预加载常用语言（按需可扩展）
 const PRELOAD_LANGS = [
@@ -105,6 +106,50 @@ md.renderer.rules.image = (tokens, idx, options, _env, self) => {
   return self.renderToken(tokens, idx, options)
 }
 
+/** 代码块 / 图表块共用的复制按钮（MarkdownRenderer 用 `.acu-code-copy` 委托命中它） */
+function copyButtonHtml(encoded: string): string {
+  return (
+    `<button type="button" class="acu-code-copy" data-code="${encoded}" aria-label="复制代码">` +
+    `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>` +
+    `<span class="acu-code-copy-label">复制</span>` +
+    `</button>`
+  )
+}
+
+/**
+ * ```mermaid 的占位块。
+ *
+ * 为什么只给占位不给 SVG：画图要 mermaid 本体（几百 KB）且是异步的，而这里是同步的
+ * render 过程。占位块带上源码（`data-code`）和状态，DOM 挂载后由
+ * `renderMermaidBlocks()` 把 SVG 补进 `.acu-mermaid-canvas`。
+ *
+ * 源码同时以 <pre> 形式渲染并默认隐藏：解析失败时直接露出来当降级，
+ * 不用等第二次 render 再补一份源码。
+ */
+function mermaidBlockHtml(code: string): string {
+  const L = mermaidLabels()
+  const esc = md.utils.escapeHtml
+  const encoded = encodeURIComponent(code)
+  const sourceLabel = esc(L.source ?? '')
+  return (
+    `<div class="acu-mermaid" data-code="${encoded}" data-state="pending" data-view="chart">` +
+    `<div class="acu-mermaid-bar">` +
+    `<span class="acu-mermaid-type">${esc(mermaidTypeLabel(code))}</span>` +
+    `<span class="acu-mermaid-actions">` +
+    `<button type="button" class="acu-mermaid-toggle" aria-label="${sourceLabel}">${sourceLabel}</button>` +
+    copyButtonHtml(encoded) +
+    `</span>` +
+    `</div>` +
+    `<div class="acu-mermaid-hint">` +
+    `<span class="acu-typing-dots"><span></span><span></span><span></span></span>` +
+    `<span class="acu-mermaid-hint-text">${esc(L.loading ?? '')}</span>` +
+    `</div>` +
+    `<div class="acu-mermaid-canvas"></div>` +
+    `<pre class="acu-mermaid-source"><code>${esc(code)}</code></pre>` +
+    `</div>`
+  )
+}
+
 // 重写 fence（代码块）：包裹语言标签 + 复制按钮 header
 md.renderer.rules.fence = (tokens, idx) => {
   const token = tokens[idx]
@@ -113,6 +158,9 @@ md.renderer.rules.fence = (tokens, idx) => {
   const code = token.content
   const langLabel = lang || 'text'
   const encoded = encodeURIComponent(code)
+
+  // ```mermaid 走图表链路；关掉时退回下面的普通代码块（源码仍然可见）
+  if (isMermaidLang(lang) && isMermaidEnabled()) return mermaidBlockHtml(code)
 
   let inner = ''
   if (highlighter && lang) {
@@ -135,10 +183,7 @@ md.renderer.rules.fence = (tokens, idx) => {
     `<div class="acu-code-block">` +
     `<div class="acu-code-header">` +
     `<span class="acu-code-lang">${md.utils.escapeHtml(langLabel)}</span>` +
-    `<button type="button" class="acu-code-copy" data-code="${encoded}" aria-label="复制代码">` +
-    `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>` +
-    `<span class="acu-code-copy-label">复制</span>` +
-    `</button>` +
+    copyButtonHtml(encoded) +
     `</div>${inner}</div>`
   )
 }

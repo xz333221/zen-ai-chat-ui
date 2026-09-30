@@ -83,7 +83,7 @@
 
         <!-- 正文 -->
         <div v-if="renderedContent" class="acu-bubble-content">
-          <MarkdownRenderer :source="renderedContent" />
+          <MarkdownRenderer :source="renderedContent" :streaming="isStreamingContent" />
           <span
             v-if="isStreamingContent"
             class="acu-cursor"

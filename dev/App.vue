@@ -1556,7 +1556,8 @@ function buildAnswer(): string {
 1. 流式输出渲染（逐字呈现 + 光标）
 2. 「思考过程」独立折叠块
 3. 完整 Markdown 渲染与代码高亮
-4. 附件上传与预览
+4. Mermaid 流程图 / 时序图（可切源码）
+5. 附件上传与预览
 
 ### 代码示例
 
@@ -1592,6 +1593,38 @@ async function onSend({ text }) {
 
 > 提示：\`useStreaming().append\` 接收 \`{ type: 'content' | 'reasoning', delta }\` 分片，组件会自动区分思考与正文。
 
+### 流程图（Mermaid）
+
+\`\`\`mermaid
+flowchart TD
+  A[用户提问] --> B{需要调工具?}
+  B -- 是 --> C[并行执行工具]
+  C --> D[整合结果]
+  B -- 否 --> D
+  D --> E[流式输出正文]
+  E --> F[写入会话历史]
+\`\`\`
+
+时序上也说得通：
+
+\`\`\`mermaid
+sequenceDiagram
+  participant U as 用户
+  participant C as ChatContainer
+  participant M as 模型
+  U->>C: 发送消息
+  C->>M: POST /chat (stream)
+  M-->>C: delta.reasoning
+  M-->>C: delta.content
+  C-->>U: 打字机效果渲染
+\`\`\`
+
+写坏的图不会白屏，会自己退回源码：
+\`\`\`mermaid
+flowchart TD
+  A[想画个图 --> B[忘了收括号
+\`\`\`
+
 ### 能力对照
 
 | 能力 | 说明 |
@@ -1600,6 +1633,7 @@ async function onSend({ text }) {
 | 主题 | 浅色 / 深色 / 跟随系统 |
 | 附件 | 拖拽 + 点击，图片缩略图 |
 | Markdown | 标题、列表、表格、引用、代码高亮 |
+| 图表 | \`mermaid\` 代码块直接画流程图 / 时序图，渲染失败退回源码 |
 
 行内代码 \`useStreaming\` 与 \`MarkdownRenderer\` 均可独立使用，详见 [示例文档](https://example.com)。
 
