@@ -48,6 +48,7 @@
           :multiple="question.multiple"
           :allow-free-text="question.allowFreeText"
           :submitting="questionSubmitting"
+          :answers="questionAnswers"
           :labels="questionLabels"
           @answer="(answers) => $emit('answer', answers)"
         />
@@ -148,6 +149,16 @@ const props = withDefaults(
      */
     question?: AskUserQuestion | null
     /**
+     * 提问面板的已作答内容（非空即进入只读「已回答」态）。
+     *
+     * 不传时：面板在点选瞬间自己闪一下「已回答」（打勾 + 高亮），随后由宿主清掉
+     * `question` —— 这轮问答在页面上不留痕。
+     * 传了时：面板原地转成只读记录（选项保留、所选那项打勾、其余淡化），
+     * 想把这轮问答留在页面上就得传它。换下一个问题时记得清空。
+     * @default []
+     */
+    questionAnswers?: string[]
+    /**
      * 提问面板是否正在提交答案（请求飞行中）。
      * 为 true 时面板整体禁用，避免重复提交。
      * @default false
@@ -230,6 +241,7 @@ const props = withDefaults(
     showInput: true,
     question: null,
     questionSubmitting: false,
+    questionAnswers: () => [],
     questionLabels: undefined,
     uploadConfig: () => ({}),
     followup: undefined,

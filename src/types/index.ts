@@ -444,8 +444,10 @@ export interface AskUserQuestion {
 
 /** 提问面板可覆盖的文案（宿主项目要走 i18n 时传自己的翻译） */
 export interface AskUserLabels {
-  /** 面板标题 */
+  /** 未作答时的面板标题 */
   title: string
+  /** 已作答时的面板标题 */
+  answered: string
   /** 自由输入框占位 */
   placeholder: string
   /** 提交按钮文案 */

@@ -168,6 +168,7 @@ function onStop() {
   :messages="messages"
   :question="pendingQuestion"          <!-- null 时不渲染 -->
   :question-submitting="submitting"    <!-- 提交请求飞行中：整体禁用，防重复提交 -->
+  :question-answers="questionAnswers"  <!-- 非空 → 面板转只读「已回答」留档 -->
   @answer="onAnswer"
 />
 ```
@@ -181,26 +182,38 @@ const pendingQuestion = ref<AskUserQuestion | null>({
 })
 
 // 单选 1 项；多选 N 项；自由输入的内容作为额外一项
+const questionAnswers = ref<string[]>([])
+
 function onAnswer(answers: string[]) {
-  submit(answers).finally(() => { pendingQuestion.value = null })
+  questionAnswers.value = answers     // 先记下"选了什么"，面板立刻转只读留档
+  submit(answers)                     // 后台慢慢提交；换下一个问题时再清空
 }
 ```
 
+![已回答留档：选项保留、所选那项打勾、其余淡化](docs/ask-user-answered.png)
+
 交互约定：
 
+- **点选即有反馈**：点下去的那一刻所选选项立刻打勾 + 主色高亮、其余淡化、标题转「已回答」——不等宿主回传 `submitting` 或清掉 `question`。面板一提交就整体 `disabled`，如果选中的项也跟着变灰，用户等于没看到自己选了什么
 - **单选**：点选项即提交（`answers = [所选选项]`），不必再点按钮
 - **多选**：勾选若干项后点「提交回答」；自由输入的内容作为**额外一项**并入
 - **提交中**：传 `questionSubmitting`，面板整体禁用；组件内部还有一层闩锁，防止请求回流前连点导致重复提交
-- **失败重试**：`questionSubmitting` 从 `true` 回到 `false` 时闩锁自动放开，面板可再次提交
-- **换问题**：`question` 变化时自动清空上一轮的勾选与输入
+- **失败重试**：`questionSubmitting` 从 `true` 回到 `false` 时闩锁自动放开、单选的"已选"标记撤回，面板可再次提交
+- **留档**：把答案回传给 `questionAnswers`，面板原地转成只读「已回答」（选项保留、所选那项打勾、其余淡化、输入框换成答案 chip）。**不传的话这轮问答在页面上不留痕**——宿主清掉 `question` 就没了，只剩你自己 push 的那条用户消息
+- **换问题**：`question` 变化时自动清空上一轮的勾选与输入；留档态要宿主自己把 `questionAnswers` 清回 `[]`
 
-文案默认中文（`等待你的回答` / `输入回答` / `提交回答`），需要 i18n 就传 `questionLabels`：
+文案默认中文（`等待你的回答` / `已回答` / `输入回答` / `提交回答`），需要 i18n 就传 `questionLabels`：
 
 ```vue
 <ChatContainer
   :messages="messages"
   :question="pendingQuestion"
-  :question-labels="{ title: t('waiting'), placeholder: t('inputAnswer'), submit: t('submit') }"
+  :question-labels="{
+    title: t('waiting'),
+    answered: t('answered'),
+    placeholder: t('inputAnswer'),
+    submit: t('submit')
+  }"
 />
 ```
 
@@ -211,6 +224,7 @@ function onAnswer(answers: string[]) {
   question="选一个目标分支"
   :options="['main', 'develop']"
   :submitting="submitting"
+  :answers="answers"      <!-- 传了就是只读留档态，不传就是可交互的新提问 -->
   @answer="onAnswer"
 />
 ```
@@ -456,6 +470,7 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 | `showInput`         | `boolean`                  | `true`     | 是否渲染内置输入框。传 `false` 时输入框由宿主自己摆（配合导出的 `ChatInput`），见「窄屏怎么办」 |
 | `question`          | `AskUserQuestion \| null`  | `null`     | 向用户提问：非空时在消息列表与输入框之间渲染提问面板（详见上方） |
 | `questionSubmitting`| `boolean`                  | `false`    | 提问面板是否正在提交（请求飞行中，面板整体禁用） |
+| `questionAnswers`   | `string[]`                 | `[]`       | 提问面板的已作答内容：非空时面板转只读「已回答」留档 |
 | `questionLabels`    | `Partial<AskUserLabels>`   | -          | 提问面板文案覆盖（走 i18n 时用） |
 | `uploadConfig`      | `Partial<UploadConfig>`    | `{}`       | 附件上传配置          |
 | `followup`          | `FollowupInput`            | -          | 追问建议（详见下方）  |

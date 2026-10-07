@@ -158,6 +158,7 @@
         :theme="cfg.theme"
         :question="demoQuestion"
         :question-submitting="questionSubmitting"
+        :question-answers="questionAnswers"
         :upload-config="uploadConfig"
         :followup="followup"
         :tool-calls-config="toolCallsConfig"
@@ -631,7 +632,8 @@ const SCHEMA: ConfigGroup[] = [
       { key: 'questionShow', label: '显示提问面板', type: 'bool', hint: '面板出现在消息列表与输入框之间' },
       { key: 'questionText', label: '问题文案', type: 'text', hint: 'question.question' },
       { key: 'questionMultiple', label: '多选', type: 'bool', hint: '默认 false：单选点即提交' },
-      { key: 'questionAllowFreeText', label: '允许自由输入', type: 'bool', hint: '默认 true' }
+      { key: 'questionAllowFreeText', label: '允许自由输入', type: 'bool', hint: '默认 true' },
+      { key: 'questionKeepAnswer', label: '回答后留档', type: 'bool', hint: 'questionAnswers：面板转只读「已回答」' }
     ]
   },
   {
@@ -743,6 +745,8 @@ const DEFAULTS = {
   questionText: '你想让我接下来做点什么？',
   questionMultiple: false,
   questionAllowFreeText: true,
+  // 回答后把答案回传给 questionAnswers，面板原地转只读「已回答」留档
+  questionKeepAnswer: true,
 
   // 会话列表
   convShow: true,
@@ -815,6 +819,8 @@ const presetQuestions: PresetQuestion[] = [
 // 真实的智能体场景里，这个对象来自后端 ask_user 事件；提交则是把答案发回后端。
 const DEMO_QUESTION_OPTIONS = ['看看本机最近有哪些 Git 项目', '随便聊两句，就测试这个面板', '帮我检查某个项目的代码']
 const questionSubmitting = ref(false)
+/** 已作答内容：非空时面板转只读「已回答」留档（见 questionKeepAnswer） */
+const questionAnswers = ref<string[]>([])
 
 const demoQuestion = computed<AskUserQuestion | null>(() =>
   cfg.questionShow
@@ -827,20 +833,34 @@ const demoQuestion = computed<AskUserQuestion | null>(() =>
     : null
 )
 
+// 面板重新打开 = 新一轮提问：把上一轮的留档清掉
+watch(
+  () => cfg.questionShow,
+  (show) => {
+    if (show) questionAnswers.value = []
+  }
+)
+
 async function onAnswer(answers: string[]) {
   questionSubmitting.value = true
   // 模拟把答案提交给后端的耗时
   await new Promise((r) => setTimeout(r, 600))
   questionSubmitting.value = false
-  cfg.questionShow = false
 
-  messages.value.push({
-    id: uid('u'),
-    role: 'user',
-    content: `我的回答：${answers.join(' / ')}`,
-    status: 'done',
-    createdAt: Date.now()
-  })
+  if (cfg.questionKeepAnswer) {
+    // 留档：面板原地转成只读「已回答」，不用再补一条文本气泡把答案重复一遍
+    questionAnswers.value = answers
+  } else {
+    cfg.questionShow = false
+    messages.value.push({
+      id: uid('u'),
+      role: 'user',
+      content: `我的回答：${answers.join(' / ')}`,
+      status: 'done',
+      createdAt: Date.now()
+    })
+  }
+
   const assistant = streaming.createAssistant(uid('a'))
   assistant.status = 'pending'
   messages.value.push(assistant)
@@ -1106,6 +1126,8 @@ const followup = computed<FollowupConfig | PresetQuestion[] | undefined>(() => {
 function clearMessages() {
   messages.value = []
   busy.value = false
+  cfg.questionShow = false
+  questionAnswers.value = []
 }
 
 function filesToAttachments(files: SelectedFile[]): ChatAttachment[] {
@@ -1151,6 +1173,9 @@ function settle(msg: ChatMessage, e: unknown) {
 
 async function onSend({ text, files }: { text: string; files: SelectedFile[] }) {
   if (busy.value) return
+  // 直接敲消息 = 不等这个提问了：把面板和留档一起收起，别让旧问题挂在输入框上方
+  cfg.questionShow = false
+  questionAnswers.value = []
   // 分页模式下可能是在会话列表页敲的（输入框常驻，列表页也能发）：
   // 发完得跳到对话页，否则用户看不到自己刚发出去的消息
   mobilePane.value = 'chat'
@@ -1189,8 +1214,7 @@ function onSelect(q: PresetQuestion) {
     // 提问面板演示：直接打开面板（真实场景由后端 ask_user 事件触发）
     cfg.questionShow = true
     return
-  }
-  onSend({ text: q.prompt, files: [] })
+  }  onSend({ text: q.prompt, files: [] })
 }
 
 /**
