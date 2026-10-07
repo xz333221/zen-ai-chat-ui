@@ -5,9 +5,9 @@
 // 设计为“无状态工具 + 响应式消息对象”模式，消费方持有消息引用，
 // composable 负责按 StreamChunk 类型分发到 content / reasoning。
 //
-// 顺带记录三个时间戳（createdAt / firstTokenAt / finishedAt），
-// 在 finish() 时回填 meta 里的耗时与首字延迟——这两个数字消费方
-// 自己算也行，但很容易在重试、并发、多处 finish 的情况下算错。
+// 顺带记录时间戳（createdAt / firstTokenAt / finishedAt / reasoningStartedAt /
+// reasoningEndedAt），在 finish() 时回填 meta 里的耗时、首字延迟与思考段耗时——
+// 这几个数字消费方自己算也行，但很容易在重试、并发、多处 finish 的情况下算错。
 // ============================================================
 import { reactive } from 'vue'
 import type { ChatMessage, MessageStats, StreamChunk } from '@/types'
@@ -34,11 +34,13 @@ export function resetStreamTiming(message: ChatMessage): void {
   message.createdAt = Date.now()
   message.finishedAt = undefined
   message.firstTokenAt = undefined
+  message.reasoningStartedAt = undefined
+  message.reasoningEndedAt = undefined
   // usage 是接口按次返回的，一并清掉，避免新一次生成时还挂着上一次的 token 数
   message.meta = undefined
 }
 
-/** 把时间戳折算成 meta 里的 durationMs / firstTokenMs，不覆盖已显式设置的值 */
+/** 把时间戳折算成 meta 里的 durationMs / firstTokenMs / reasoningMs，不覆盖已显式设置的值 */
 function stampMeta(message: ChatMessage): void {
   const start = message.createdAt
   const end = message.finishedAt
@@ -50,6 +52,20 @@ function stampMeta(message: ChatMessage): void {
   const first = message.firstTokenAt
   if (typeof meta.firstTokenMs !== 'number' && typeof first === 'number' && first >= start) {
     meta.firstTokenMs = first - start
+  }
+
+  // 思考段耗时：第一个思考分片 → 最后一个思考分片。
+  // 刻意不写「到 reasoningStatus 转 done 为止」——那样会把「思考完了但正文还没开始」
+  // 那段空档也算进来，而且宿主自己把 status 改成 done 时根本收不到这个事件
+  const rStart = message.reasoningStartedAt
+  const rEnd = message.reasoningEndedAt
+  if (
+    typeof meta.reasoningMs !== 'number' &&
+    typeof rStart === 'number' &&
+    typeof rEnd === 'number' &&
+    rEnd > rStart
+  ) {
+    meta.reasoningMs = rEnd - rStart
   }
   message.meta = meta
 }
@@ -75,6 +91,12 @@ export function useStreaming(): UseStreamingReturn {
 
     switch (chunk.type) {
       case 'reasoning':
+        // 思考段的计时边界就架在分片本身上：第一个分片是起点，之后每个分片都把
+        // 「最近一次思考」往前推 —— 流停了，它自然就是终点
+        if (typeof message.reasoningStartedAt !== 'number') {
+          message.reasoningStartedAt = Date.now()
+        }
+        message.reasoningEndedAt = Date.now()
         message.reasoning = (message.reasoning || '') + (chunk.delta || '')
         message.reasoningStatus = 'streaming'
         message.status = 'streaming'

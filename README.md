@@ -9,7 +9,7 @@
 - **向用户提问**：内置提问面板（单选点击即提交 / 多选勾选后提交 / 可选自由输入），适合 agent 中途停下来向用户要一个选择
 - **会话列表**：独立的 `ConversationList`（搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式），和 `ChatContainer` 并排就是完整的对话应用骨架；窄到放不下两列时，演示页会自动切成「列表页 ↔ 对话页」两页，输入框则用 `showInput=false` 拆出来常驻在卡片最下方，**列表页也有一条**（VSCode 那种感觉）
 - **输入框可拆**：`ChatContainer` 传 `showInput=false` 就不渲染内置输入框，改由宿主用导出的 `ChatInput` 自己摆位；整个应用只挂一个实例，切页时草稿与待发附件都还在
-- **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）
+- **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）。标题右侧带**思考段耗时**，流式实时跳、折叠也看得见
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **任务计划**：计划类工具调用（`update_plan` / `TodoWrite` …）自动渲染成带勾选态的清单（三态 + 进度条 + 说明），并在工具组折叠时保持常驻——折叠只藏别的调用，不藏当前计划
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
@@ -253,6 +253,17 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 
 流式输出时正文会**自动贴底**跟随新内容；用户手动往上滚查看前文后跟随暂停，滚回底部自动恢复。滚动到边界不会把外层消息列表一起带走（`overscroll-behavior: contain`）。
 
+标题右侧还会显示**思考段耗时**——流式期间实时跳动，结束后定格；折叠着也看得见，所以不用展开就知道「它想了多久」。取的是「第一个思考分片 → 最后一个思考分片」，不含思考结束后等正文的那段空档。
+
+![思考块标题右侧的耗时（折叠态）](docs/thinking-duration.png)
+
+这个数字的来源，按优先级取第一个拿得到的：
+
+1. `message.meta.reasoningMs`（宿主显式给，**历史记录里就靠它**）
+2. `message.reasoningStartedAt` / `reasoningEndedAt`（`useStreaming().append()` 收到 `reasoning` 分片时自动记，`finish()` 时折进 `meta.reasoningMs`）
+
+**手写流式（不走 `useStreaming()`）的宿主**在收到第一段和最后一段思考时各记一个时间戳、或直接给 `reasoningMs` 即可；一个都没有时**什么都不显示**，不会出现 `—` 这类占位。
+
 ### `ThinkingConfig` 字段
 
 | 字段            | 类型      | 默认值  | 说明 |
@@ -262,6 +273,7 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 | `followStream`  | `boolean` | `true`  | 流式输出时是否自动贴底跟随 |
 | `scrollbar`     | `'hover' \| 'always' \| 'hidden'` | `'hover'` | 正文滚动条显隐策略：悬停淡入 / 常显 / 完全隐藏（滚动能力都保留） |
 | `defaultExpanded` | `boolean` | -     | 初始是否展开；不传则沿用默认（streaming 展开、完成折叠） |
+| `showDuration`  | `boolean` | `true`  | 标题右侧是否显示思考段耗时（拿不到耗时就不显示，不会留占位） |
 
 ```vue
 <!-- 默认：320px 上限 + 内部滚动 + 流式跟随 -->
@@ -299,7 +311,12 @@ assistant 消息的 `reasoning` 字段会渲染成一个独立的可折叠「思
 也可以单独用 `<ThinkingBlock>`：
 
 ```vue
-<ThinkingBlock :content="msg.reasoning" :streaming="true" :config="{ maxHeight: 240 }" />
+<ThinkingBlock
+  :content="msg.reasoning"
+  :streaming="true"
+  :config="{ maxHeight: 240 }"
+  :duration-ms="msg.meta?.reasoningMs"   <!-- 耗时；不传就按时间戳推、都没有则不显示 -->
+/>
 ```
 
 > 跑 `npm run dev` 后点预设里的「超长思考滚动」可以直接看到效果（含流式贴底跟随）。

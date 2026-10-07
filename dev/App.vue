@@ -423,6 +423,13 @@ const SCHEMA: ConfigGroup[] = [
       },
       { key: 'thinkFollowStream', label: '流式贴底跟随', field: 'followStream', type: 'bool', hint: '默认 true' },
       {
+        key: 'thinkShowDuration',
+        label: '标题显示思考耗时',
+        field: 'showDuration',
+        type: 'bool',
+        hint: '默认 true：流式实时跳、完成定格（拿不到耗时就不显示）'
+      },
+      {
         key: 'thinkScrollbar',
         label: '滚动条时机',
         field: 'scrollbar',
@@ -701,6 +708,7 @@ const DEFAULTS = {
   thinkFollowStream: true,
   thinkScrollbar: 'hover' as 'hover' | 'always' | 'hidden',
   thinkExpanded: 'default' as 'default' | 'true' | 'false',
+  thinkShowDuration: true,
 
   // 工具调用
   toolGroup: true,
@@ -986,7 +994,8 @@ const thinkingConfig = computed<ThinkingConfig>(() => ({
   maxHeight: cfg.thinkMaxHeight,
   followStream: cfg.thinkFollowStream,
   scrollbar: cfg.thinkScrollbar,
-  defaultExpanded: cfg.thinkExpanded === 'default' ? undefined : cfg.thinkExpanded === 'true'
+  defaultExpanded: cfg.thinkExpanded === 'default' ? undefined : cfg.thinkExpanded === 'true',
+  showDuration: cfg.thinkShowDuration
 }))
 
 // —— 消息元信息：耗时 / 首字延迟 / token ——

@@ -183,6 +183,15 @@ export interface ThinkingConfig {
    * 初始是否展开。不传则沿用默认行为（streaming 展开、完成折叠）
    */
   defaultExpanded?: boolean
+  /**
+   * 标题右侧是否显示思考段耗时（`4.2s`）。
+   *
+   * 只在拿得到耗时的时候显示：流式期间按开始时间实时跳动，结束后定格。
+   * 拿不到（历史消息没存这个数、宿主也没给 `meta.reasoningMs`）就什么都不显示，
+   * 不会出现「—」这种占位。
+   * @default true
+   */
+  showDuration?: boolean
 }
 
 /**
@@ -277,6 +286,13 @@ export interface MessageStats {
   durationMs?: number
   /** 首字延迟（毫秒）：从发起到第一个分片到达。流式体验的关键指标 */
   firstTokenMs?: number
+  /**
+   * 思考（reasoning）段耗时（毫秒）：第一个思考分片 → 最后一个思考分片。
+   *
+   * 不传时由 `reasoningStartedAt` / `reasoningEndedAt` 推导，两者也没有则不展示。
+   * 手写流式（不走 `useStreaming()`）的宿主自己赋值即可，历史记录里也能显示。
+   */
+  reasoningMs?: number
   /** token 用量 */
   usage?: TokenUsage
   /** 附加自定义项（模型名、检索命中数…） */
@@ -391,6 +407,16 @@ export interface ChatMessage {
    * 由 `useStreaming().append()` 自动写入，用于推导首字延迟
    */
   firstTokenAt?: number
+  /**
+   * 第一个思考分片到达的时间戳。
+   * 由 `useStreaming().append()` 自动写入，用于推导思考段耗时
+   */
+  reasoningStartedAt?: number
+  /**
+   * 最近一个思考分片的时间戳（流式期间随分片推进，停止后即思考结束时刻）。
+   * 由 `useStreaming().append()` 自动写入
+   */
+  reasoningEndedAt?: number
   /** 耗时 / token 用量等运行元信息 */
   meta?: MessageStats
   /** 错误信息（status === 'error' 时） */

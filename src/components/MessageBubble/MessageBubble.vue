@@ -74,6 +74,9 @@
           :content="effectiveReasoning"
           :streaming="message.reasoningStatus === 'streaming'"
           :config="thinkingConfig"
+          :duration-ms="message.meta?.reasoningMs"
+          :started-at="message.reasoningStartedAt"
+          :ended-at="message.reasoningEndedAt"
         />
 
         <!-- 工具调用（仅 assistant）：多个调用默认折叠，只展示最新一个 -->

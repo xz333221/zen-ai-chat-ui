@@ -39,6 +39,11 @@
         {{ streaming ? '思考中' : '思考' }}
       </span>
 
+      <!-- 思考段耗时：折叠着也看得见「它想了多久」，这正是这个数字的用处 -->
+      <span v-if="durationText" class="acu-thinking-duration" :title="durationTitle">
+        {{ durationText }}
+      </span>
+
       <span v-if="streaming" class="acu-typing-dots" aria-hidden="true">
         <span></span><span></span><span></span>
       </span>
@@ -83,8 +88,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ThinkingConfig } from '@/types'
+import { formatDuration } from '@/utils/format'
 import MarkdownRenderer from '@/components/MarkdownRenderer/MarkdownRenderer.vue'
 
 const props = withDefaults(
@@ -95,14 +101,26 @@ const props = withDefaults(
     streaming?: boolean
     /** 初始是否展开 */
     defaultExpanded?: boolean
-    /** 展示配置（高度上限 / 滚动 / 流式跟随） */
+    /** 展示配置（高度上限 / 滚动 / 流式跟随 / 耗时） */
     config?: ThinkingConfig
+    /**
+     * 思考段耗时（毫秒）。显式值优先——历史记录里就靠它，
+     * 时间戳没被存下来时它是唯一的来源
+     */
+    durationMs?: number
+    /** 思考开始时间戳。不传 durationMs 时用它推导，流式期间还能实时跳动 */
+    startedAt?: number
+    /** 思考结束时间戳（不再流式时用它定格） */
+    endedAt?: number
   }>(),
   {
     content: '',
     streaming: false,
     defaultExpanded: undefined,
-    config: undefined
+    config: undefined,
+    durationMs: undefined,
+    startedAt: undefined,
+    endedAt: undefined
   }
 )
 
@@ -130,6 +148,68 @@ const bodyStyle = computed(() =>
   props.config?.maxHeight
     ? ({ '--acu-thinking-max-height': `${props.config.maxHeight}px` } as Record<string, string>)
     : undefined
+)
+
+// —— 思考段耗时 ——
+// 取值优先级：显式 durationMs > 时间戳推导 > （流式期间）实时跳动。
+// 和 MessageMeta 里那套耗时逻辑同构，省得两处对「有值 / 没值」的判定长得不一样。
+const showDuration = computed(() => props.config?.showDuration !== false)
+
+const now = ref(Date.now())
+let ticker: ReturnType<typeof setInterval> | null = null
+
+function stopTicker() {
+  if (ticker) {
+    clearInterval(ticker)
+    ticker = null
+  }
+}
+
+/** 只有「正在思考 + 有起点 + 没有现成数字」才需要开定时器 —— 历史消息一个都不开 */
+const ticking = computed(
+  () =>
+    showDuration.value &&
+    props.streaming &&
+    typeof props.durationMs !== 'number' &&
+    typeof props.startedAt === 'number'
+)
+
+watch(
+  ticking,
+  (on) => {
+    stopTicker()
+    if (!on) return
+    now.value = Date.now()
+    ticker = setInterval(() => {
+      now.value = Date.now()
+    }, 100)
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(stopTicker)
+
+const durationMs = computed(() => {
+  if (!showDuration.value) return null
+  if (typeof props.durationMs === 'number') return props.durationMs
+
+  const start = props.startedAt
+  if (typeof start !== 'number') return null
+  if (props.streaming) return now.value - start
+
+  const end = props.endedAt
+  return typeof end === 'number' && end > start ? end - start : null
+})
+
+const durationText = computed(() => {
+  const ms = durationMs.value
+  // 0ms 说明思考只来了一个分片、瞬间就结束了 —— 这个数字没有信息量，
+  // 显示它只会让人以为统计坏了
+  return ms === null || ms <= 0 ? '' : formatDuration(ms)
+})
+
+const durationTitle = computed(() =>
+  props.streaming ? '已思考时长' : '思考耗时（第一个思考分片 → 最后一个分片）'
 )
 
 // streaming 时默认展开；done 时默认折叠（除非显式指定）
@@ -205,6 +285,16 @@ function toggle() {
 //   2. 折叠过渡动画（v-show + <transition> 配套）
 .acu-thinking-header {
   @include acu-focus-ring;
+}
+
+// 思考段耗时。比标题再轻一档，别把「思考中」这三个字的注意力分走；
+// 数字每 100ms 跳一次，用等宽字形免得整行跟着抖
+.acu-thinking-duration {
+  color: var(--acu-text-muted);
+  font-size: var(--acu-font-size-xs);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 // 折叠过渡
