@@ -10,6 +10,8 @@
 //   3. 源码里的尖括号 / 引号不能漏进 HTML（data 属性与 <pre> 两处都是注入面）
 //   4. 关掉图表后要退回普通代码块（源码仍可见，不是消失）
 //   5. 类型标题按源码首个关键字判断（跳过 front-matter 与 %% 注释）
+//   6. 占位块里要有「放大」（全屏查看器入口），文案跟着 labels 走
+//   7. 缩放下限的接口与默认值（几何要浏览器量，见 zen-gitsync 的 mermaid-fix-probe）
 //
 // 依赖：先 npm run build
 
@@ -17,6 +19,8 @@ import {
   setMermaidConfig,
   mermaidTypeLabel,
   mermaidLabels,
+  mermaidPreviewSvg,
+  MermaidZoomDefaults,
   useMarkdown,
   MERMAID_TYPE_NAMES
 } from '../dist/ai-chat-ui.es.js'
@@ -96,6 +100,27 @@ check('覆盖后的文案进了 fence 输出', render('```mermaid\ngraph TD\n A-
 setMermaidConfig({ labels: { source: '源码', error: '图表渲染失败，已显示源码' } })
 
 check('类型表覆盖常见图型', Object.keys(MERMAID_TYPE_NAMES).length >= 20)
+
+// —— 8. 全屏查看器（2026-10-07）：占位块里要有「放大」，文案跟着 labels ——
+// 为什么这条也放在这里：放大按钮是**默认就渲染**的（正文里的图本来就常常要放大看），
+// 与画布补渲染无关；哪天 fence 改结构把它漏掉，这里立刻红。
+const zoomHtml = render('```mermaid\ngraph TD\n A-->B\n```')
+check('占位块带「放大」按钮', zoomHtml.includes('class="acu-mermaid-zoom"'))
+check('放大按钮文案默认是「放大」', zoomHtml.includes('>放大</button>'))
+setMermaidConfig({ labels: { zoom: 'Enlarge' } })
+check('放大按钮文案可覆盖', render('```mermaid\ngraph TD\n A-->B\n```').includes('>Enlarge</button>'))
+setMermaidConfig({ labels: { zoom: '放大' } })
+
+check('查看器组件的文案字段齐全', ['zoom', 'zoomIn', 'zoomOut', 'zoomReset', 'close', 'zoomHint'].every((k) => typeof mermaidLabels()[k] === 'string'))
+check('从空画布取预览 SVG 是空串（不该抛）', mermaidPreviewSvg(null) === '')
+
+// —— 9. 缩放下限：配置接口在，默认 0.8、0 可关 ——
+// 真正的几何（容器 420px 里图保持原尺寸 + 横滚）只有浏览器量得准，
+// 这里钉住的是「接口/默认值」这层契约。
+check('缩放下限默认 0.8', MermaidZoomDefaults.minScale === 0.8)
+setMermaidConfig({ minScale: 0 })
+check('minScale 可关掉（0）', true)
+setMermaidConfig({ minScale: MermaidZoomDefaults.minScale })
 
 console.log(fail === 0 ? '\nALL PASS' : `\nFAIL: ${fail}`)
 process.exit(fail === 0 ? 0 : 1)

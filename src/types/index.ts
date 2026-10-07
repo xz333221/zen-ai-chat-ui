@@ -585,6 +585,18 @@ export interface MermaidLabels {
   loading?: string
   /** 渲染失败时跟在源码前的说明，默认「图表渲染失败，已显示源码」 */
   error?: string
+  /** 图表头「放大」按钮文案（打开全屏查看器），默认「放大」 */
+  zoom?: string
+  /** 查看器：放大一档，默认「放大」 */
+  zoomIn?: string
+  /** 查看器：缩小一档，默认「缩小」 */
+  zoomOut?: string
+  /** 查看器：回到适应窗口，默认「适应窗口」 */
+  zoomReset?: string
+  /** 查看器：关闭，默认「关闭」 */
+  close?: string
+  /** 查看器底部的操作提示，默认「滚轮缩放 · 拖动平移 · 双击复位 · Esc 关闭」 */
+  zoomHint?: string
 }
 
 /** mermaid 主题变量（键即 mermaid 的 themeVariables 键名） */
@@ -612,6 +624,14 @@ export interface MermaidBlockConfig {
    * 改成 `'loose'` 会放行 SVG 里的 HTML/事件属性，请只在完全可信的来源下这么做。
    */
   options?: Record<string, unknown>
+  /**
+   * 正文里图表的**缩放下限**：容器不够宽时，图最多缩到这个倍数就不再缩了
+   * （保持原始尺寸 + 横向滚动），免得整张等比缩小把字压成 4~5px。
+   *
+   * 传 0 关闭下限（永远适应容器宽度，与旧版一致）。
+   * @default 0.8（14px 正文 ≈ 11px，再小就读不动了）
+   */
+  minScale?: number
   /** 文案覆盖 */
   labels?: MermaidLabels
   /** 图表类型标题覆盖，键见 `MERMAID_TYPE_NAMES`（如 `{ flowchart: '流程' }`） */

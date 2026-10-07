@@ -20,6 +20,7 @@ export { default as MarkdownRenderer } from './components/MarkdownRenderer/Markd
 export { default as FollowupSuggestions } from './components/FollowupSuggestions/FollowupSuggestions.vue'
 export { default as MessageMeta } from './components/MessageMeta/MessageMeta.vue'
 export { default as ImagePreview } from './components/ImagePreview/ImagePreview.vue'
+export { default as MermaidPreview } from './components/MermaidPreview/MermaidPreview.vue'
 export { default as MessageRail } from './components/MessageRail/MessageRail.vue'
 export { default as AskUserPanel } from './components/AskUserPanel/AskUserPanel.vue'
 export { default as ConversationList } from './components/ConversationList/ConversationList.vue'
@@ -46,6 +47,8 @@ export {
   resolveMermaidTheme,
   observeMermaidTheme,
   toggleMermaidSource,
+  mermaidPreviewSvg,
+  MermaidZoomDefaults,
   MERMAID_LANGS,
   MERMAID_SELECTOR,
   MERMAID_TYPE_NAMES

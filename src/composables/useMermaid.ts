@@ -83,7 +83,19 @@ const DEFAULT_LABELS: Required<MermaidLabels> = {
   /** 图表还在生成（流式中） */
   loading: '正在生成图表…',
   /** 渲染失败，正文降级为源码 */
-  error: '图表渲染失败，已显示源码'
+  error: '图表渲染失败，已显示源码',
+  /** 图表头「放大」（打开全屏查看器） */
+  zoom: '放大',
+  /** 查看器：放大一档 */
+  zoomIn: '放大',
+  /** 查看器：缩小一档 */
+  zoomOut: '缩小',
+  /** 查看器：回到适应窗口 */
+  zoomReset: '适应窗口',
+  /** 查看器：关闭 */
+  close: '关闭',
+  /** 查看器底部提示 */
+  zoomHint: '滚轮缩放 · 拖动平移 · 双击复位 · Esc 关闭'
 }
 
 // —— 主题变量 ——
@@ -112,7 +124,13 @@ const THEME_TOKENS: ThemeToken[] = [
   ['tertiaryColor', '--acu-surface-2', '#eef0f4', '#2f2f39'],
   ['tertiaryBorderColor', '--acu-border', '#e8e9ef', '#2b2b33'],
   ['tertiaryTextColor', '--acu-text', '#18181b', '#f4f4f5'],
-  ['lineColor', '--acu-border-strong', '#d6d8e0', '#55555f'],
+  // 连线/箭头（流程图的边、类图关系线、时序图生命线）：
+  // 原来取的是 --acu-border-strong —— 那是给正文「分隔线」用的档位，当图形连线太淡了：
+  // 实测浅色 #d6d8e0 对白底只有 1.44:1、深色 #55555f 对 #1e1e25 只有 2.25:1，
+  // 都不到 WCAG 对图形对象的 3:1；深色主题里那些箭头基本是「糊」的。
+  // 换成 --acu-text-muted（浅 #74747e ≈ 4.7:1 / 深 #93939f ≈ 5.4:1）—— 同一套色阶里
+  // 唯一既够对比、又不会被误读成「正文」的一档。
+  ['lineColor', '--acu-text-muted', '#74747e', '#93939f'],
   ['textColor', '--acu-text', '#18181b', '#f4f4f5'],
   ['titleColor', '--acu-text', '#18181b', '#f4f4f5'],
   // 子图（subgraph）用最浅一档底色 + 发丝边，别抢节点的视线
@@ -128,7 +146,8 @@ const THEME_TOKENS: ThemeToken[] = [
   ['actorBkg', '--acu-primary-soft', 'rgba(99, 102, 241, 0.09)', 'rgba(129, 140, 248, 0.14)'],
   ['actorBorder', '--acu-primary', '#6366f1', '#818cf8'],
   ['actorTextColor', '--acu-text', '#18181b', '#f4f4f5'],
-  ['actorLineColor', '--acu-border-strong', '#d6d8e0', '#55555f'],
+  // 生命线同样是「连线」，跟 lineColor 同一档（原来的 border-strong 在深色下几乎看不见）
+  ['actorLineColor', '--acu-text-muted', '#74747e', '#93939f'],
   ['signalColor', '--acu-text-secondary', '#54545e', '#a5a5b0'],
   ['signalTextColor', '--acu-text', '#18181b', '#f4f4f5'],
   ['labelBoxBkgColor', '--acu-surface', '#f7f8fa', '#24242b'],
@@ -182,10 +201,13 @@ let userConfig: MermaidBlockConfig = {}
  * ```
  */
 export function setMermaidConfig(config: MermaidBlockConfig): void {
+  const fitChanged = config.minScale !== undefined && config.minScale !== userConfig.minScale
   userConfig = { ...userConfig, ...config }
   configVersion++
   // 主题相关配置变了，下一次渲染必须重新 initialize
   initedTheme = null
+  // 缩放下限是**画完之后**才用的：现成的图不用重画，重新适配一次就行
+  if (fitChanged) FIT_TARGETS.forEach((canvas) => fitMermaidCanvas(canvas))
 }
 
 /** 图表渲染是否启用（默认启用，`setMermaidConfig({ enabled: false })` 关掉） */
@@ -199,7 +221,13 @@ function labels(): Required<MermaidLabels> {
     source: o.source ?? DEFAULT_LABELS.source,
     chart: o.chart ?? DEFAULT_LABELS.chart,
     loading: o.loading ?? DEFAULT_LABELS.loading,
-    error: o.error ?? DEFAULT_LABELS.error
+    error: o.error ?? DEFAULT_LABELS.error,
+    zoom: o.zoom ?? DEFAULT_LABELS.zoom,
+    zoomIn: o.zoomIn ?? DEFAULT_LABELS.zoomIn,
+    zoomOut: o.zoomOut ?? DEFAULT_LABELS.zoomOut,
+    zoomReset: o.zoomReset ?? DEFAULT_LABELS.zoomReset,
+    close: o.close ?? DEFAULT_LABELS.close,
+    zoomHint: o.zoomHint ?? DEFAULT_LABELS.zoomHint
   }
 }
 
@@ -297,9 +325,27 @@ function buildOptions(el: Element | null, theme: 'light' | 'dark'): Record<strin
     themeVariables: buildThemeVariables(el, theme),
     // 时序图 / 甘特图这类直接读 config.fontSize 的图型（流程图的字号在 themeVariables 里）
     fontSize: '14px',
+    // 甘特图的字号**不走 themeVariables**：它读自己的 gantt.fontSize / sectionFontSize，
+    // 默认 11px —— 比正文小两档，窄一点就彻底读不动。这里跟正文对齐。
+    // ⚠️ 必须是**数字**：渲染器里拿它做算术（`conf.fontSize / 2 - 2`），传 '14px' 会算出 NaN。
+    gantt: { fontSize: 14, sectionFontSize: 14 },
     ...(fontFamily ? { fontFamily } : {}),
     ...(userConfig.options || {})
   }
+}
+
+/**
+ * 给渲出来的 SVG 补一条 CSS：甘特图的日期刻度。
+ *
+ * 渲染器里那两处刻度是**写死的** `attr("font-size", 10)` + `fill="#000"`，配置改不到；
+ * 但它们是 SVG **呈现属性**（presentation attribute），优先级低于任何 CSS 规则 ——
+ * 所以一条带 id 前缀的规则就能把字号抬起来。（颜色不用管：mermaid 自己那条
+ * `#id{fill:…}` 已经盖掉了写死的黑色。）
+ *
+ * 10px 的日期在窄面板里认不出是哪天，抬到 12px（库的「小字」一档）。
+ */
+function decorateSvg(svg: string, id: string): string {
+  return svg.replace(/<svg[^>]*>/, (tag) => `${tag}<style>#${id} .grid .tick text{font-size:12px}</style>`)
 }
 
 /** 当前生效的深浅色：优先看最近的 [data-theme]（组件库自己挂的），其次系统偏好 */
@@ -409,8 +455,9 @@ export function renderMermaid(
     const id = `acu-mmd-${++renderSeq}`
     try {
       const { svg } = await api.render(id, code)
-      cacheSet(key, svg)
-      return svg
+      const decorated = decorateSvg(svg, id)
+      cacheSet(key, decorated)
+      return decorated
     } catch (err) {
       removeTemp(id)
       throw err
@@ -457,6 +504,118 @@ function paint(el: HTMLElement, svg: string, theme: 'light' | 'dark'): void {
   // 于是「切到深色后重画的图仍然是浅色配色」，而且块内的源码区也跟着变浅。
   el.dataset.mermaidTheme = theme
   setState(el, 'done')
+  fitMermaidCanvas(canvas)
+  observeFit(canvas)
+}
+
+// —— 缩放下限：容器不够宽时，别把整张图等比缩小 —— //
+//
+// mermaid 输出的是 `width="100%"` + `style="max-width: 自然宽"`：容器比图窄时它
+// **整张等比缩小**，字跟着一起缩。实测 420px 的面板里，993px 宽的流程图被压到 0.39 倍
+// （14px 正文等效 5.5px），甘特图 0.30 倍（4.2px）—— 这就是「流程图看不清」的根。
+//
+// 所以给缩小划一条底线（默认 0.8 倍 ≈ 11px）：越过底线就改成**保持原始尺寸 + 横向滚动**
+// （画布本来就是 overflow-x: auto）。想看全貌可以点「放大」进全屏查看器。
+//
+// 用 ResizeObserver 跟着容器宽度重算：宿主拖分隔条 / 开合侧栏都会变宽变窄，
+// 只有窗口 resize 事件是不够的。
+const FIT_TARGETS = new Set<HTMLElement>()
+let fitObserver: ResizeObserver | null = null
+
+function ensureFitObserver(): ResizeObserver | null {
+  if (fitObserver || typeof ResizeObserver === 'undefined') return fitObserver
+  fitObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) fitMermaidCanvas(entry.target as HTMLElement)
+  })
+  return fitObserver
+}
+
+/** 已经不挂在文档上的画布（流式每帧重建 DOM）要从观察名单里摘掉，否则越积越多 */
+function pruneFitTargets(): void {
+  for (const t of [...FIT_TARGETS]) {
+    if (t.isConnected) continue
+    fitObserver?.unobserve(t)
+    FIT_TARGETS.delete(t)
+  }
+}
+
+/** 图表的自然宽度：优先读 mermaid 写进 style 的 max-width，其次退回 viewBox */
+function naturalWidthOf(svg: SVGSVGElement): number {
+  const m = /max-width:\s*([\d.]+)px/.exec(svg.getAttribute('style') || '')
+  if (m) return parseFloat(m[1])
+  const parts = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/)
+  const w = Number(parts[2])
+  return Number.isFinite(w) && w > 0 ? w : 0
+}
+
+function fitMermaidCanvas(canvas: HTMLElement): void {
+  const svg = canvas.querySelector('svg')
+  if (!svg) return
+  const natural = naturalWidthOf(svg)
+  if (!natural) return
+  const cs = getComputedStyle(canvas)
+  const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
+  const avail = canvas.clientWidth - pad
+  if (avail <= 0) return
+
+  const minScale = userConfig.minScale ?? MermaidZoomDefaults.minScale
+  const needScroll = minScale > 0 && avail < natural * minScale
+
+  if (needScroll) {
+    // 第一次改尺寸前把 mermaid 的原值存下来，之后能原样还原（max-width 是它写的 inline style，
+    // 直接清空会让窄图被拉满容器）
+    if (svg.dataset.acuFit !== 'natural') {
+      svg.dataset.acuFit = 'natural'
+      svg.dataset.acuWidth = svg.style.width
+      svg.dataset.acuMaxWidth = svg.style.maxWidth
+    }
+    svg.style.width = `${natural}px`
+    svg.style.maxWidth = 'none'
+  } else if (svg.dataset.acuFit === 'natural') {
+    svg.dataset.acuFit = 'fit'
+    svg.style.width = svg.dataset.acuWidth ?? ''
+    svg.style.maxWidth = svg.dataset.acuMaxWidth ?? ''
+  }
+  canvas.classList.toggle('is-scrolled', needScroll)
+}
+
+/** 记着观察这块画布（幂等）：画布重建后要重新挂 */
+function observeFit(canvas: HTMLElement): void {
+  const observer = ensureFitObserver()
+  if (!observer || FIT_TARGETS.has(canvas)) return
+  FIT_TARGETS.add(canvas)
+  observer.observe(canvas)
+}
+
+/** 正文里的图表缩放下限默认值（`setMermaidConfig({ minScale })` 可覆盖，0 = 关闭） */
+export const MermaidZoomDefaults = { minScale: 0.8 }
+
+/**
+ * 取出画布里的 SVG，交给全屏查看器用。
+ *
+ * 做两件字符串处理（都在「取出来那一刻」，不动正文里那一份）：
+ *  1. 根 id 加 `-preview` 后缀 —— mermaid 的样式是按 `#<id>` 作用域注入 SVG 内部的
+ *     （`<style>#acu-mmd-3 .nodeLabel{…}</style>`），所以 id 不能删，只能改名；
+ *     不改的话同一份 id 会在文档里出现两次（正文 + 查看器两个拷贝），
+ *     `querySelector('#id')` 之类的行为就没保证了。
+ *  2. 尺寸改成自然宽高 —— 查看器里要按 100% 原始大小显示（`width="100%"` 那种
+ *     跟随容器的写法在这里没有意义）。
+ */
+export function mermaidPreviewSvg(canvas: HTMLElement | null): string {
+  const svg = canvas?.querySelector('svg')
+  if (!svg) return ''
+  let html = svg.outerHTML
+  const id = svg.id
+  if (id) html = html.split(`id="${id}"`).join(`id="${id}-preview"`).split(`#${id}`).join(`#${id}-preview`)
+  const w = naturalWidthOf(svg)
+  const parts = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/)
+  const vbW = Number(parts[2])
+  const vbH = Number(parts[3])
+  if (w > 0 && vbW > 0 && vbH > 0) {
+    const h = Math.round((w * vbH) / vbW)
+    html = html.replace(/width="100%"/, `width="${w}" height="${h}"`)
+  }
+  return html
 }
 
 function fail(el: HTMLElement, err: unknown): void {
@@ -486,6 +645,8 @@ export function renderMermaidBlocks(
   if (!root || !isMermaidEnabled()) return
   const blocks = root.querySelectorAll<HTMLElement>(MERMAID_SELECTOR)
   if (!blocks.length) return
+  // 流式每帧重建 DOM：把已经拆掉的画布从缩放观察名单里摘干净
+  pruneFitTargets()
 
   const theme = resolveMermaidTheme(root)
 
@@ -493,8 +654,15 @@ export function renderMermaidBlocks(
     const state = el.dataset.state
     // 画不出来的图已经降级成源码了，反复重试只会反复报错
     if (state === 'error') return
-    // 已画好 + 配色没过期 → 无需重画
-    if (state === 'done' && el.dataset.mermaidTheme === theme) return
+    // 已画好 + 配色没过期 → 无需重画（但缩放要跟着容器/配置走，所以补一次适配 + 挂观察）
+    if (state === 'done' && el.dataset.mermaidTheme === theme) {
+      const canvas = el.querySelector<HTMLElement>('.acu-mermaid-canvas')
+      if (canvas) {
+        fitMermaidCanvas(canvas)
+        observeFit(canvas)
+      }
+      return
+    }
 
     const code = decodeURIComponent(el.dataset.code || '')
     if (!code) {

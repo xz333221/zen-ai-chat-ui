@@ -2,27 +2,44 @@
   <!--
     Markdown 渲染容器。
     - v-html 输出 markdown-it 解析结果（已禁原始 HTML，安全）
-    - 事件委托处理代码块复制按钮 / 图表「源码」切换
+    - 事件委托处理代码块复制按钮 / 图表「源码」切换 / 图表「放大」
     - 样式为非 scoped（带 .acu-md 前缀隔离），因 v-html 内容无法被 scoped 命中
+    - inheritAttrs: false + v-bind="$attrs"：查看器是第二个根节点（Teleport 到 body），
+      多根组件不再自动承接 attrs，得手动把宿主传的 class/style 绑回 .acu-md 上 ——
+      不然宿主那层 class（如 JobLogDetails 的 .wb-log-fullscreen__render）会落到空处
   -->
   <div
     ref="root"
     class="acu-md"
+    v-bind="$attrs"
     v-html="html"
     @click="onClick"
     @mouseover="onThinkingOver"
     @mouseout="onThinkingOut"
   ></div>
+
+  <!-- 图表全屏查看器：Teleport 到 body，不占正文布局 -->
+  <MermaidPreview
+    v-model:visible="previewVisible"
+    :svg="previewSvg"
+    :theme="previewTheme"
+    :labels="zoomLabels"
+  />
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useMarkdown, isShikiReady } from '@/composables/useMarkdown'
 import {
+  mermaidLabels,
+  mermaidPreviewSvg,
   observeMermaidTheme,
   renderMermaidBlocks,
   toggleMermaidSource
 } from '@/composables/useMermaid'
+import MermaidPreview from '@/components/MermaidPreview/MermaidPreview.vue'
+
+defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(
   defineProps<{
@@ -136,7 +153,7 @@ function onThinkingOut(e: Event) {
   body.classList.remove('is-scrollbar-visible')
 }
 
-// 复制 / 图表视图切换：都是 v-html 里的按钮，只能走事件委托
+// 复制 / 图表视图切换 / 图表放大：都是 v-html 里的按钮，只能走事件委托
 function onClick(e: MouseEvent) {
   const target = e.target as HTMLElement | null
   if (!target) return
@@ -146,7 +163,45 @@ function onClick(e: MouseEvent) {
     toggleMermaidSource(toggle.closest<HTMLElement>('.acu-mermaid'))
     return
   }
+
+  const zoomBtn = target.closest('.acu-mermaid-zoom')
+  if (zoomBtn) {
+    openMermaidPreview(zoomBtn.closest<HTMLElement>('.acu-mermaid'))
+    return
+  }
+
+  // 直接点图也能打开（用户不会先去头里找按钮）。
+  // 两个例外：图里的链接交给它自己；正在选字时那一下 click 不算「点开」。
+  const canvas = target.closest('.acu-mermaid-canvas')
+  if (canvas && !target.closest('a')) {
+    const selection = window.getSelection?.()
+    if (selection && !selection.isCollapsed) return
+    const block = canvas.closest<HTMLElement>('.acu-mermaid')
+    if (block?.dataset.state === 'done') {
+      openMermaidPreview(block)
+      return
+    }
+  }
+
   onCodeCopyClick(target)
+}
+
+// —— 图表全屏查看器 —— //
+const previewVisible = ref(false)
+const previewSvg = ref('')
+const previewTheme = ref<'light' | 'dark'>('light')
+// 文案在渲染时读（与 fence 生成占位块同一口径），宿主改配置后重新渲染正文才生效
+const zoomLabels = computed(() => mermaidLabels())
+
+function openMermaidPreview(block: HTMLElement | null): void {
+  if (!block) return
+  const canvas = block.querySelector<HTMLElement>('.acu-mermaid-canvas')
+  const html = mermaidPreviewSvg(canvas)
+  if (!html) return
+  previewSvg.value = html
+  // 「纸」的底色跟着图表自己的主题走（浅色图不该糊在深色遮罩里）
+  previewTheme.value = block.dataset.mermaidTheme === 'dark' ? 'dark' : 'light'
+  previewVisible.value = true
 }
 
 // 代码块复制：事件委托
@@ -475,7 +530,8 @@ function onCodeCopyClick(target: HTMLElement) {
   }
 
   // 和 .acu-code-copy 同一档按钮（后者样式在下面，图表头里复用同一个类）
-  .acu-mermaid-toggle {
+  .acu-mermaid-toggle,
+  .acu-mermaid-zoom {
     display: inline-flex;
     align-items: center;
     padding: var(--acu-space-1) var(--acu-space-2);
@@ -509,6 +565,7 @@ function onCodeCopyClick(target: HTMLElement) {
 
   .acu-mermaid-canvas {
     display: none;
+    position: relative;
     padding: var(--acu-space-4);
     overflow-x: auto;
     @include acu-scrollbar(8px);
@@ -522,7 +579,35 @@ function onCodeCopyClick(target: HTMLElement) {
       // 原尺寸居中、比内容列宽才等比缩小」。
       // 实测（Chromium）：一旦用 max-width: 100% !important 压掉那个 N，
       // 窄图会被拉满内容列 —— 232px 宽的流程图被放大 2.8 倍，字比正文还大。
+      //
+      // 缩小有下限（见 useMermaid 的 fitMermaidCanvas）：容器窄到会跌破 0.8 倍时，
+      // 由 JS 把 svg 改回自然宽度、交给这里的 overflow-x 横滚，不再把字压成 4~5px。
     }
+  }
+
+  // 可点开全屏查看器（图已画好、且不在源码视图）：给个能看出「这里能点」的指针
+  .acu-mermaid[data-state='done'][data-view='chart'] .acu-mermaid-canvas {
+    cursor: zoom-in;
+  }
+
+  /*
+    宽图落进窄容器、改为横向滚动时，右边缘给一道渐隐：外面还有内容。
+    挂在**块**上、盖在画布右缘（画布自己滚动，伪元素跟着滚，钉不住）。
+    高度从标题栏下沿（34px）到底：done + chart 时画布独占剩下的高度。
+  */
+  .acu-mermaid[data-state='done'][data-view='chart']:has(.acu-mermaid-canvas.is-scrolled) {
+    position: relative;
+  }
+  .acu-mermaid[data-state='done'][data-view='chart']:has(.acu-mermaid-canvas.is-scrolled)::after {
+    content: '';
+    position: absolute;
+    top: 34px;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    border-bottom-right-radius: var(--acu-radius);
+    pointer-events: none;
+    background: linear-gradient(to right, transparent, var(--acu-card-bg, #fff));
   }
 
   .acu-mermaid-source {
@@ -579,10 +664,18 @@ function onCodeCopyClick(target: HTMLElement) {
     }
   }
 
-  // 还没画出图（或压根没图）时没有源码可切，藏掉切换按钮，只留复制
+  // 还没画出图（或压根没图）时没有源码可切、也没有图可放大，两个按钮都藏掉，只留复制
   .acu-mermaid[data-state='pending'] .acu-mermaid-toggle,
+  .acu-mermaid[data-state='pending'] .acu-mermaid-zoom,
   .acu-mermaid[data-state='streaming'] .acu-mermaid-toggle,
-  .acu-mermaid[data-state='rendering'] .acu-mermaid-toggle {
+  .acu-mermaid[data-state='streaming'] .acu-mermaid-zoom,
+  .acu-mermaid[data-state='rendering'] .acu-mermaid-toggle,
+  .acu-mermaid[data-state='rendering'] .acu-mermaid-zoom {
+    display: none;
+  }
+
+  // 源码视图里没有「图」可放大
+  .acu-mermaid[data-view='source'] .acu-mermaid-zoom {
     display: none;
   }
 }

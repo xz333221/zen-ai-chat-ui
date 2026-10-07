@@ -840,7 +840,7 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 ![Mermaid 流程图渲染](docs/mermaid-light.png)
 
 - 语言是 `mermaid`（或老缩写 `mmd`）就自动走图表链路，宿主不用做任何事
-- 图头一行：类型标题（流程图 / 时序图 / 状态图… 按源码首个关键字自动判断）、复制源码、**源码 / 图表**切换
+- 图头一行：类型标题（流程图 / 时序图 / 状态图… 按源码首个关键字自动判断）、**放大**、复制源码、**源码 / 图表**切换
 - 配色 / 字号取自 `--acu-*` 令牌 —— 宿主换肤时图跟着一起变；深浅色切换会自动重画（缓存按主题分键，来回切只画一次）
 - **流式输出期间只挂「正在生成图表…」占位，等这一轮答完再画**：半截源码要么报语法错、要么画出一张错的图
 - 画不出来也不白屏：自动退回源码 + 一句说明（鼠标悬停能看到 mermaid 的原始报错）
@@ -848,6 +848,21 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 ![语法错误时退回源码显示](docs/mermaid-fallback.png)
 
 ![深色主题下的流程图](docs/mermaid-dark.png)
+
+### 看不清怎么办：缩放下限 + 全屏查看器
+
+图比容器宽的时候，逐字缩下去就成了一张**糊图** —— 实测 420px 的面板里，993px 宽的流程图
+被压到 0.39 倍（14px 的正文字等效只剩 5.5px），甘特图 0.30 倍（4.2px）。所以：
+
+- **缩放下限**（`minScale`，默认 `0.8`）：容器窄到会把图压破这条件时，**不再缩**，
+  改成保持原始尺寸 + 横向滚动（右缘一道渐隐提示还有内容）。轻微超宽（如 0.87 倍）仍然适宽显示，
+  不是一超宽就滚动。传 `minScale: 0` 回到「永远适应容器」的老行为。
+- **全屏查看器**：图头点「放大」（或直接点图）｜滚轮缩放 · 拖动平移 · 双击复位（适应窗口）· Esc 关闭。
+  默认按 100% 原始尺寸打开，装不下才缩到适应 —— 图不放大超过 100%（小图不会被拉成马赛克）。
+- 甘特图的字号是与其它图型**分开配的**（mermaid 读自己的 `gantt.fontSize`，默认 11px；
+  日期刻度更是渲染器里写死的 10px）—— 库会把它们抬到 14px / 12px，跟正文对齐。
+- 连线和箭头取 `--acu-text-muted` 一档（浅色 ≈4.7:1、深色 ≈5.4:1）：原来的 `--acu-border-strong`
+  是给正文分隔线用的，当图形连线太淡（浅 1.44:1 / 深 2.25:1），深色主题里箭头基本是糊的。
 
 ### 体积与加载
 
@@ -877,8 +892,15 @@ setMermaidConfig({ options: { flowchart: { curve: 'basis' } } })
 
 // 4) 英文界面
 setMermaidConfig({
-  labels: { source: 'Code', chart: 'Diagram', loading: 'Rendering…', error: 'Render failed, showing source' }
+  labels: {
+    source: 'Code', chart: 'Diagram', loading: 'Rendering…', error: 'Render failed, showing source',
+    zoom: 'Enlarge', zoomIn: 'Zoom in', zoomOut: 'Zoom out', zoomReset: 'Fit', close: 'Close',
+    zoomHint: 'Scroll to zoom · drag to pan · double-click to reset · Esc to close'
+  }
 })
+
+// 5) 缩放下限：传 0 关闭（永远适应容器宽度）
+setMermaidConfig({ minScale: 0 })
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
@@ -886,7 +908,8 @@ setMermaidConfig({
 | `enabled` | `boolean` | `true` | 关掉后 `mermaid` 代码块退回普通代码块 |
 | `themeVariables` | `{ light?, dark? }` | - | 覆盖 mermaid 主题变量；默认按 `--acu-*` 令牌取色，令牌读不到时用内置兜底色板 |
 | `options` | `object` | - | 透传 `mermaid.initialize()`。⚠️ `securityLevel` 默认 `'strict'`（SVG 经 DOMPurify 清洗），模型输出是不可信内容，不要改成 `'loose'` |
-| `labels` | `MermaidLabels` | 中文 | 文案覆盖 |
+| `minScale` | `number` | `0.8` | 正文里图表的缩放下限：容器不够宽就不再缩，改横向滚动（`0` = 关闭，永远适应容器） |
+| `labels` | `MermaidLabels` | 中文 | 文案覆盖（含查看器的 `zoom` / `zoomIn` / `zoomOut` / `zoomReset` / `close` / `zoomHint`） |
 | `typeNames` | `Record<string, string>` | 内置 | 图表类型标题覆盖（键见 `MERMAID_TYPE_NAMES`） |
 
 ### 单独使用
@@ -906,7 +929,8 @@ import { renderMermaidBlocks } from 'zen-ai-chat-ui'
 renderMermaidBlocks(document.querySelector('#chat-body'), { streaming: false })
 ```
 
-其余导出：`isMermaidEnabled` / `isMermaidReady` / `renderMermaid` / `toggleMermaidSource` / `mermaidTypeLabel` / `isMermaidLang` / `MERMAID_TYPE_NAMES`。
+其余导出：`isMermaidEnabled` / `isMermaidReady` / `renderMermaid` / `toggleMermaidSource` / `mermaidTypeLabel` / `isMermaidLang` / `mermaidPreviewSvg`（从画布里取出可放进查看器的 SVG 标记）/ `MermaidZoomDefaults` / `MERMAID_TYPE_NAMES`；
+查看器本身也导出成组件（`MermaidPreview`，默认 `Teleport` 到 body），要用在别处直接挂 `v-model:visible` + `svg` + `theme` 即可。
 
 ## 消息操作栏
 

@@ -131,11 +131,13 @@ function mermaidBlockHtml(code: string): string {
   const esc = md.utils.escapeHtml
   const encoded = encodeURIComponent(code)
   const sourceLabel = esc(L.source ?? '')
+  const zoomLabel = esc(L.zoom ?? '')
   return (
     `<div class="acu-mermaid" data-code="${encoded}" data-state="pending" data-view="chart">` +
     `<div class="acu-mermaid-bar">` +
     `<span class="acu-mermaid-type">${esc(mermaidTypeLabel(code))}</span>` +
     `<span class="acu-mermaid-actions">` +
+    `<button type="button" class="acu-mermaid-zoom" aria-label="${zoomLabel}">${zoomLabel}</button>` +
     `<button type="button" class="acu-mermaid-toggle" aria-label="${sourceLabel}">${sourceLabel}</button>` +
     copyButtonHtml(encoded) +
     `</span>` +
