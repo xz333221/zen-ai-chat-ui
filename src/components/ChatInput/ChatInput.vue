@@ -53,7 +53,7 @@
       </div>
     </div>
 
-    <!-- 图片预览灯箱（点缩略图打开） -->
+        <!-- 图片预览灯箱（点缩略图打开） -->
     <ImagePreview
       v-model:visible="previewVisible"
       v-model:index="previewIndex"
@@ -95,6 +95,34 @@
         @compositionend="onCompositionEnd"
         @paste="onPaste"
       ></textarea>
+
+      <!--
+        上下文占用：发送按钮左侧的圆环，深色弧长表示占比；**hover 圆环**才出气泡。
+        形态参考 WorkBuddy（2026-10-07 量得：直径约 50px、浅灰底 rgb(242,242,242)、
+        弧色偏蓝灰、气泡浮在上方且尖角正指圆环）。
+        为什么圆环常显、气泡 hover 才出：圆环是"随时可查的状态"，气泡是"要读的数字"，
+        两者混在一起会让输入框上方长期挂一块深色。
+        tabindex="0" 让键盘用户能聚焦并读到数字（纯 hover 键盘不可达）；
+        焦点描边用 :has(:focus-visible) 单独给，鼠标点击不会留下永久描边。
+      -->
+      <div
+        v-if="usageView"
+        class="acu-input-usage"
+        :class="`is-${usageView.level}`"
+        role="img"
+        :aria-label="usageView.summary"
+        tabindex="0"
+      >
+        <span class="acu-input-usage-text" role="tooltip">{{ usageView.summary }}</span>
+        <svg class="acu-input-usage-ring" viewBox="0 0 36 36" aria-hidden="true">
+          <circle class="acu-input-usage-track" cx="18" cy="18" r="15" />
+          <circle
+            class="acu-input-usage-arc"
+            cx="18" cy="18" r="15"
+            :stroke-dasharray="usageView.dashArray"
+          />
+        </svg>
+      </div>
 
       <button
         type="button"
@@ -139,7 +167,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue'
-import type { SelectedFile, UploadConfig } from '@/types'
+import type { SelectedFile, UploadConfig, ContextUsage } from '@/types'
 import { uid, isImageType } from '@/utils/format'
 import ImagePreview from '@/components/ImagePreview/ImagePreview.vue'
 
@@ -155,13 +183,23 @@ const props = withDefaults(
     generating?: boolean
     uploadConfig?: Partial<UploadConfig>
     maxLength?: number
+    /**
+     * 上下文占用指示。不传则整条不渲染（且不占位，见模板里的 v-if）。
+     *
+     * 形状与语义见 `types/index.ts` 的 `ContextUsage` —— 一句话：**宿主算好
+     * `{ ratio, current, total }` 传进来，库只负责排版与配色**。库不替你算
+     * 占用率，因为那取决于业务口径（字符还是 token？两条预算取大者？provider
+     * 报的真实用量还是本地估算？），写死一个口径等于逼每个宿主绕开它。
+     */
+    contextUsage?: ContextUsage | null
   }>(),
   {
     placeholder: '输入消息，Enter 发送，Shift+Enter 换行',
     disabled: false,
     generating: false,
     uploadConfig: () => ({}),
-    maxLength: 4000
+    maxLength: 4000,
+    contextUsage: null
   }
 )
 
@@ -203,6 +241,48 @@ const uploadConfig = computed<UploadConfig>(() => ({
   maxSize: 20 * 1024 * 1024,
   ...props.uploadConfig
 }))
+
+// —— 上下文占用指示 —— //
+/**
+ * 数字按 unit 决定要不要除 1000。
+ *
+ * 为什么要库做这个而不是让宿主拼好字符串：`255.9K` / `1000.0K` 这种写法
+ * 每个宿主都得自己写一遍除法与小数位，某处少个 0 就会显示成 `1000K`。
+ * 传 `{ current: 255900, total: 1000000, unit: 'K' }` 由这里统一处理。
+ */
+function formatUsageValue(v: number): string {
+  if (!Number.isFinite(v)) return '—'
+  const isK = /^K/i.test(props.contextUsage?.unit || '')
+  const n = isK ? v / 1000 : v
+  // K 档保留一位小数（255.9K），其余取整 —— 整数后面拖一堆小数是噪声
+  return isK ? n.toFixed(1) : String(Math.round(n))
+}
+
+const usageView = computed(() => {
+  const u = props.contextUsage
+  if (!u) return null
+  const ratio = Number.isFinite(u.ratio) ? u.ratio : 0
+  const unit = u.unit || ''
+  // 百分比**不夹取**：ratio 传 1.2 就显示 120%，超了要看得见 ——
+  // 悄悄夹到 100% 会把宿主的计算 bug 藏起来
+  const percent = ratio * 100
+  const level = u.level || (ratio >= 1 ? 'full' : ratio >= 0.8 ? 'warn' : 'normal')
+  const summary =
+    `${percent.toFixed(1)}% · ${formatUsageValue(u.current)}${unit}` +
+    ` / ${formatUsageValue(u.total)}${unit}` +
+    (u.suffix ? ` ${u.suffix}` : '')
+  // 圆环周长（viewBox 36、r=15）→ 弧长。**用 stroke-dasharray 而不是 conic-gradient**：
+  // SVG 描边天生就是圆弧，conic 要靠 mask 挖中心、还得算两段渐变角度。
+  const circumference = 2 * Math.PI * 15
+  // 夹到 [0,1] 再算弧：ratio > 1 时画满整圈（周长），文字仍显示真实百分比
+  const clamped = Math.min(Math.max(ratio, 0), 1)
+  return {
+    level,
+    summary,
+    detail: u.detail || summary,
+    dashArray: `${(circumference * clamped).toFixed(2)} ${circumference.toFixed(2)}`
+  }
+})
 
 const uploadEnabled = computed(() => uploadConfig.value.enabled)
 
@@ -403,6 +483,127 @@ defineExpose({
   gap: var(--acu-space-2);
   padding: var(--acu-space-2) var(--acu-space-2) 0;
 }
+
+/*
+  上下文占用：输入框底部的一条状态行。
+  左窄右宽的两段式 —— 进度条 + 百分比/用量文字。同一条线既给"比例"也给"绝对量"，
+  因为两者回答的是不同问题：比例回答"还剩多少"，绝对量回答"现在到底带了多少"。
+  只给其中一个都会让人不放心：只有百分比，100% 是 400 字符还是 400k 字符看不出来；
+  只有绝对量，剩多少空间要自己算。
+*/
+/*
+  上下文占用：**发送按钮左侧的圆环**，深色弧长 = 占比；hover（或键盘聚焦）时上方浮气泡。
+  形态按 WorkBuddy 实测还原（2026-10-07 从截图量得）：
+    · 圆环显示直径 26px（viewBox 36，缩放渲染），浅灰底 rgb(242,242,242)
+    · 弧色偏蓝灰，从**正上方 12 点顺时针**填充 —— 与 convic 图标类指示器同一起点
+    · 气泡 221×28、圆角 ≈8px、底色 rgb(68,70,98)，尖角高 4px 底宽 6px 正指圆环
+
+  为什么圆环常显、气泡 hover 才出：圆环是"随时可查的状态灯"，气泡是"要读的精确数字"。
+  两者都常显会在输入框上方长期挂一块深色，喧宾夺主且挡住对话。
+  键盘可达性：圆环给 tabindex="0"，`:focus-within` 让 Tab 聚焦时也能看到气泡
+  （纯 hover 的话键盘用户永远读不到这个数字）。
+  ⚠️ 焦点环用 `:has(:focus-visible)` 单独给 —— **不要**写成
+  `.acu-input-usage:focus-within { box-shadow }`：那样鼠标点一下圆环、
+  焦点留在上面，描边就永久留住了（实测踩过，`InstanceSwitcher` 就因此把
+  hover 态写成了永久高亮）。`:focus-visible` 只在键盘操作时匹配，鼠标点击不触发。
+*/
+.acu-input-usage {
+  position: relative;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  border-radius: 50%;
+  /* 键盘聚焦时才给一圈描边，鼠标 hover 不给 —— 否则每次移上去输入框里多一个框 */
+  outline: none;
+}
+.acu-input-usage:has(.acu-input-usage-ring:focus-visible) {
+  box-shadow: 0 0 0 2px var(--acu-bg), 0 0 0 4px var(--acu-primary);
+}
+
+/*
+  显示尺寸 26px，**viewBox 仍是 36** —— 两者解耦，所以 dashArray 的周长计算
+  （基于 viewBox 里的 r=15）完全不用动。改小只是缩放渲染，不影响弧长比例。
+  26px 与相邻 34px 的附件按钮差一档：圆环是状态灯，不需要和主按钮同权重，
+  太大反而会让人以为那里能点。
+*/
+.acu-input-usage-ring {
+  width: 26px;
+  height: 26px;
+  transform: rotate(-90deg);   /* 让 stroke 从 12 点开始顺时针走 */
+}
+
+.acu-input-usage-track {
+  fill: none;
+  stroke: var(--acu-surface-hover, #f1f2f6);
+  stroke-width: 3;
+}
+
+.acu-input-usage-arc {
+  fill: none;
+  stroke: var(--acu-text-muted);   /* 深蓝灰，与参考图一致 */
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dasharray 240ms var(--acu-easing, ease);
+}
+
+/*
+  气泡：浮在圆环正上方，尖角正指圆环圆心。
+  opacity/visibility 过渡而不是 display:none —— 元素一直在，
+  hover 才显形；`pointer-events: none` 保证不挡鼠标。
+*/
+.acu-input-usage-text {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: #444262;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;   /* 占比每轮变，比例字体会让气泡抖 */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 140ms var(--acu-easing, ease);
+  pointer-events: none;
+}
+
+/* 尖角：4px 高、6px 底宽，与气泡同色 */
+.acu-input-usage-text::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -3px;
+  border: 4px solid transparent;
+  border-top-color: #444262;
+  border-bottom: 0;
+}
+
+.acu-input-usage:hover .acu-input-usage-text,
+.acu-input-usage:focus-within .acu-input-usage-text {
+  opacity: 1;
+  visibility: visible;
+}
+
+/*
+  三档只改**弧与文字**的颜色，底色恒定 —— 圆环是固定的状态锚点，
+  变底色会让它在输入框里"闪"一下，反而更难读当前状态。
+*/
+.acu-input-usage.is-warn .acu-input-usage-arc { stroke: var(--acu-warning); }
+.acu-input-usage.is-warn .acu-input-usage-text { color: var(--acu-warning); }
+.acu-input-usage.is-full .acu-input-usage-arc { stroke: #e5484d; }
+.acu-input-usage.is-full .acu-input-usage-text { color: #ffb3b3; }
 
 .acu-input-att {
   position: relative;

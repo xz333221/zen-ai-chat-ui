@@ -62,6 +62,7 @@
         :disabled="disabled"
         :generating="generating"
         :upload-config="uploadConfig"
+        :context-usage="contextUsage"
         @send="onSend"
         @stop="$emit('stop')"
       />
@@ -85,7 +86,8 @@ import type {
   MessageMetaConfig,
   MessageRailConfig,
   AskUserQuestion,
-  AskUserLabels
+  AskUserLabels,
+  ContextUsage
 } from '@/types'
 import MessageList from '@/components/MessageList/MessageList.vue'
 import WelcomeScreen from '@/components/WelcomeScreen/WelcomeScreen.vue'
@@ -169,6 +171,12 @@ const props = withDefaults(
     /** 附件上传配置 */
     uploadConfig?: Partial<UploadConfig>
     /**
+     * 上下文占用指示，透传给内置的 ChatInput。
+     * 只有 `showInput` 为 true（内置输入框）时才有意义；宿主自己摆输入框时
+     * 请直接给那个 ChatInput 传。形状见 types 的 `ContextUsage`。
+     */
+    contextUsage?: ContextUsage | null
+    /**
      * 追问建议。
      * - 传数组：静态追问，每条 assistant 完成都展示同样的卡片
      * - 传对象：可启用 provider 动态生成、title、mode 等高级配置
@@ -244,6 +252,7 @@ const props = withDefaults(
     questionAnswers: () => [],
     questionLabels: undefined,
     uploadConfig: () => ({}),
+    contextUsage: null,
     followup: undefined,
     toolCallsConfig: undefined,
     planConfig: undefined,

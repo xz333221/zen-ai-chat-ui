@@ -123,6 +123,7 @@ export type {
   MermaidThemeVariables,
   MermaidState,
   UploadConfig,
+  ContextUsage,
   SelectedFile
 } from './types'
 
