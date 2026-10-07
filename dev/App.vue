@@ -182,13 +182,20 @@
         好处是全程只有一个实例：列表页 ↔ 对话页来回切，草稿和附件都还在。
       -->
       <div class="demo-composer">
+        <!-- 注意 disabled **不再**跟着 busy 走：生成中要能打字排队（这是这个演示的重点）。
+             想看禁用态用配置面板的「强制 disabled」。 -->
         <ChatInput
           :placeholder="inputPlaceholder"
-          :disabled="busy || cfg.forceDisabled"
+          :disabled="cfg.forceDisabled"
           :generating="busy || cfg.forceGenerating"
+          :allow-queue="cfg.queueAllow"
+          :queued="queuedMessages"
+          :queue-paused="cfg.queuePaused"
           :upload-config="uploadConfig"
           @send="onSend"
           @stop="onStop"
+          @unqueue="onUnqueue"
+          @flush-queued="flushQueued(true)"
         />
       </div>
     </main>
@@ -253,12 +260,55 @@ import {
   type MessageMetaItem,
   type MessageRailConfig,
   type UploadConfig,
+  type QueuedMessage,
   type TokenUsage
 } from '../src'
 
 const messages = ref<ChatMessage[]>([])
 const streaming = useStreaming()
 const busy = ref(false)
+
+/**
+ * ============================================================
+ *  排队演示（生成中继续发）
+ * ============================================================
+ * 真实宿主里这套逻辑在业务层（zen-gitsync 的 useAgentChat）：队列本体、什么时候
+ * 出队、暂停与否都由宿主决定；组件库只拿 `queued` 渲染条带、把 `unqueue` /
+ * `flush-queued` 抛回来。演示页把这套缩到最小：一个数组 + 一把出队口子。
+ */
+const demoQueue = ref<Array<{ id: string; text: string; files: SelectedFile[] }>>([])
+
+/** 喂给条带的展示形状（只给渲染要用的字段，队列本体不外给） */
+const queuedMessages = computed<QueuedMessage[]>(() =>
+  demoQueue.value.map(q => ({
+    id: q.id,
+    text: q.text,
+    attachmentNames: q.files.map(f => f.file.name)
+  }))
+)
+
+function enqueueChat(text: string, files: SelectedFile[]) {
+  demoQueue.value.push({ id: uid('q'), text, files })
+}
+
+function onUnqueue(id: string) {
+  const i = demoQueue.value.findIndex(q => q.id === id)
+  if (i >= 0) demoQueue.value.splice(i, 1)
+  if (!demoQueue.value.length) cfg.queuePaused = false
+}
+
+/**
+ * 出队：只在「没在跑 + 没暂停」时动手 —— 自动接棒与「立即发送」共用它
+ * （force = 用户点了「立即发送」，连暂停也一并掀掉）。
+ */
+async function flushQueued(force = false) {
+  if (busy.value) return
+  if (cfg.queuePaused && !force) return
+  if (!demoQueue.value.length) return
+  const next = demoQueue.value.shift()!
+  cfg.queuePaused = false
+  await onSend({ text: next.text, files: next.files })
+}
 
 /**
  * ============================================================
@@ -654,6 +704,15 @@ const SCHEMA: ConfigGroup[] = [
     ]
   },
   {
+    title: '排队（生成中继续发）',
+    prop: 'allowQueue / queued / queuePaused',
+    desc: '生成中发送的消息先进队列，等本轮跑完由宿主依次发出 —— 曲线在输入框里的条带就是队列本体。点「停止」或发送失败时队列**暂停**（保留内容，队首出现「立即发送」）。这里发条消息、趁它写着再发两条就能看到全流程。',
+    fields: [
+      { key: 'queueAllow', label: '生成中可排队', type: 'bool', hint: 'allowQueue=false 则生成中发送被拦下（原行为）' },
+      { key: 'queuePaused', label: '暂停态（手动预览）', type: 'bool', hint: '只影响条带提示与队首「立即发送」' }
+    ]
+  },
+  {
     title: '运行状态（演示用）',
     prop: 'disabled / generating',
     desc: '手动把容器切到禁用 / 生成中，方便看按钮与输入框的状态差异。',
@@ -761,6 +820,10 @@ const DEFAULTS = {
   convCompact: false,
   convGenerating: false,
 
+  // 排队（生成中继续发）
+  queueAllow: true,
+  queuePaused: false,
+
   // 运行状态
   forceDisabled: false,
   forceGenerating: false,
@@ -774,6 +837,8 @@ const showConfig = ref(false)
 
 function resetConfig() {
   Object.assign(cfg, DEFAULTS)
+  // 演示数据也清掉：留着一队"上一轮的排队消息"再看重置会莫名其妙
+  demoQueue.value = []
 }
 
 /** multi 类型：勾选 / 取消勾选数组里的某一项 */
@@ -1059,7 +1124,11 @@ const demoMaxWidth = computed<string | undefined>(() => {
 
 // —— 输入框占位：留空回落到组件默认值 ——
 const inputPlaceholder = computed(() => {
-  if (busy.value) return '正在生成中…右侧按钮可停止'
+  if (busy.value) {
+    return cfg.queueAllow
+      ? '正在生成中…发送会先排队，等本轮跑完自动接上'
+      : '正在生成中…右侧按钮可停止'
+  }
   return cfg.placeholder.trim() || undefined
 })
 
@@ -1175,13 +1244,22 @@ function settle(msg: ChatMessage, e: unknown) {
     finishWithUsage(msg)
     const tail = '\n\n*（已停止生成）*'
     msg.content = msg.content ? msg.content + tail : tail.trim()
+    // 中止 = 队列也停在这儿（内容保留），等用户点「立即发送」再继续 —— 与 zen-gitsync 同一口径：
+    // 暂停标记在本轮真的收尾时才置，而不是点下停止的那一瞬间（否则会出现"已暂停"和停止按钮同时在场的一帧）
+    if (demoQueue.value.length) cfg.queuePaused = true
   } else {
     streaming.fail(msg, (e as Error).message || '模拟失败')
+    if (demoQueue.value.length) cfg.queuePaused = true
   }
 }
 
 async function onSend({ text, files }: { text: string; files: SelectedFile[] }) {
-  if (busy.value) return
+  // 生成中：开了排队就把它塞进队列（条带立刻能看到），等本轮跑完自动接上；
+  // 没开排队则维持旧行为 —— 直接丢掉
+  if (busy.value) {
+    if (cfg.queueAllow) enqueueChat(text, files)
+    return
+  }
   // 直接敲消息 = 不等这个提问了：把面板和留档一起收起，别让旧问题挂在输入框上方
   cfg.questionShow = false
   questionAnswers.value = []
@@ -1212,6 +1290,10 @@ async function onSend({ text, files }: { text: string; files: SelectedFile[] }) 
   } else {
     await runMockStream(assistant, text)
   }
+
+  // 本轮正常跑完 → 自动接队首。被停止（abortRequested）时不接：
+  // 队列留在条带里、进入暂停态，等用户点「立即发送」再走
+  if (!abortRequested && !cfg.queuePaused) void flushQueued()
 }
 
 function onSelect(q: PresetQuestion) {

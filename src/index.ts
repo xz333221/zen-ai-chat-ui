@@ -124,6 +124,8 @@ export type {
   MermaidState,
   UploadConfig,
   ContextUsage,
+  QueuedMessage,
+  QueueLabels,
   SelectedFile
 } from './types'
 

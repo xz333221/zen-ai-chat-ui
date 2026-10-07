@@ -61,10 +61,16 @@
         :placeholder="placeholder"
         :disabled="disabled"
         :generating="generating"
+        :allow-queue="allowQueue"
+        :queued="queued"
+        :queue-paused="queuePaused"
+        :queue-labels="queueLabels"
         :upload-config="uploadConfig"
         :context-usage="contextUsage"
         @send="onSend"
         @stop="$emit('stop')"
+        @unqueue="(id) => $emit('unqueue', id)"
+        @flush-queued="$emit('flush-queued')"
       />
     </div>
   </div>
@@ -87,7 +93,9 @@ import type {
   MessageRailConfig,
   AskUserQuestion,
   AskUserLabels,
-  ContextUsage
+  ContextUsage,
+  QueuedMessage,
+  QueueLabels
 } from '@/types'
 import MessageList from '@/components/MessageList/MessageList.vue'
 import WelcomeScreen from '@/components/WelcomeScreen/WelcomeScreen.vue'
@@ -125,8 +133,34 @@ const props = withDefaults(
      * 由业务侧负责真正中断请求。
      * 与 `disabled` 独立：传 `disabled` 会一并禁用输入框；只传 `generating`
      * 则生成期间仍可继续输入（Enter 不会误发）。
+     *
+     * 想让生成中也"发得出去"（先进队列，本轮结束后由宿主依次发出），
+     * 再传 `allowQueue` + `queued`：见下面两个 prop。
      */
     generating?: boolean
+    /**
+     * 生成中是否允许发送（先排队）。
+     *
+     * 为 true 时生成中 Enter / 发送按钮照常抛 `send` —— 宿主在那一刻把它塞进
+     * 自己的队列（并把它作为 `queued` 传回来给条带展示）；为 false 时生成中
+     * 发送被拦下（原行为）。
+     * @default false
+     */
+    allowQueue?: boolean
+    /**
+     * 排队中的消息（宿主持有）。非空时输入框里渲染排队条带；
+     * 形状见 `QueuedMessage`，渲染规则见 ChatInput 的 `queued`。
+     * @default []
+     */
+    queued?: QueuedMessage[]
+    /**
+     * 队列是否处于暂停态（流被中止 / 上一条发送失败，等用户手动接续）。
+     * 只影响条带提示与队首那颗「立即发送」。
+     * @default false
+     */
+    queuePaused?: boolean
+    /** 排队条带文案覆盖（宿主项目要走 i18n 时传自己的翻译） */
+    queueLabels?: Partial<QueueLabels>
     /**
      * 是否渲染内置输入框。
      *
@@ -246,6 +280,10 @@ const props = withDefaults(
     placeholder: '输入消息，Enter 发送，Shift+Enter 换行',
     disabled: false,
     generating: false,
+    allowQueue: false,
+    queued: () => [],
+    queuePaused: false,
+    queueLabels: undefined,
     showInput: true,
     question: null,
     questionSubmitting: false,
@@ -286,6 +324,10 @@ const emit = defineEmits<{
   (e: 'followup-select', question: PresetQuestion, source: ChatMessage): void
   /** 点击输入框右侧的「停止生成」 */
   (e: 'stop'): void
+  /** 从排队条带里移除一条（id 原样回传；只有开了 `allowQueue` 才会发生） */
+  (e: 'unqueue', id: string): void
+  /** 暂停态下点了队首的「立即发送」：请宿主立刻把那条发出去 */
+  (e: 'flush-queued'): void
   /** 用户回答了提问面板：单选 1 项、多选 N 项，自由输入作为额外一项 */
   (e: 'answer', answers: string[]): void
 }>()

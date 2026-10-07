@@ -4,6 +4,8 @@
     - Enter 发送，Shift+Enter 换行；中文输入法 composing 期间不触发
     - 附件：图片生成缩略图，其他显示文件卡片，可移除
     - 拖拽文件进入高亮
+    - 排队（`allowQueue` + `queued`）：生成中也能发送，消息进宿主手里的队列，
+      条带展示、可移除、可在暂停时手动接续 —— 见 types/index.ts 的 QueuedMessage
   -->
   <div
     class="acu-input-wrap"
@@ -19,6 +21,52 @@
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
       </svg>
       <span>松开以添加文件</span>
+    </div>
+
+    <!--
+      排队条带：生成中发送的消息先落在这里，等本轮结束由宿主依次发出。
+      它排在附件行**上方**（与附件同属"还没发出去的东西"，先队列后附件），
+      整个条带由宿主通过 `queued` 传进来 —— 库不持有队列，只渲染。
+    -->
+    <div v-if="queued.length" class="acu-input-queue">
+      <div class="acu-input-queue-head">
+        <span class="acu-input-queue-title">{{ queueText.title }}</span>
+        <span class="acu-input-queue-count">{{ queued.length }}</span>
+        <span class="acu-input-queue-hint">{{ queuePaused ? queueText.pausedHint : queueText.hint }}</span>
+      </div>
+      <div v-for="(item, i) in queued" :key="item.id" class="acu-input-queue-item">
+        <span class="acu-input-queue-index">{{ i + 1 }}</span>
+        <span class="acu-input-queue-text" :title="item.text">{{ item.text }}</span>
+        <span
+          v-if="item.attachmentNames && item.attachmentNames.length"
+          class="acu-input-queue-atts"
+          :title="item.attachmentNames.join('、')"
+        >
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
+          <span class="acu-input-queue-att-name">{{ item.attachmentNames.join('、') }}</span>
+        </span>
+        <!-- 手动接续：只在「暂停」态给队首 —— 自动接棒时它瞬间就会被发出去，
+             摆出来只会闪一下；暂停（流被中止 / 发送失败）才是它真正的用武之地 -->
+        <button
+          v-if="i === 0 && queuePaused"
+          type="button"
+          class="acu-input-queue-btn"
+          @click="emit('flush-queued')"
+        >{{ queueText.flush }}</button>
+        <button
+          type="button"
+          class="acu-input-queue-remove"
+          :title="queueText.remove"
+          :aria-label="queueText.remove"
+          @click="emit('unqueue', item.id)"
+        >
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- 附件预览 -->
@@ -124,31 +172,23 @@
         </svg>
       </div>
 
+      <!--
+        右侧按钮组。
+        - 空闲：一颗「发送」
+        - 生成中：停止按钮固定在**最右**（位置与空闲时一致，随时能停）；
+          开了 `allowQueue` 的宿主会多一颗「加入队列」（箭头图标，草稿为空时置灰）——
+          它和停止是两件事：一个是"排队下一条"，一个是"打断这一条"。
+      -->
       <button
+        v-if="!generating || allowQueue"
         type="button"
         class="acu-input-send"
-        :class="{ 'is-stop': generating }"
-        :disabled="generating ? false : !canSend || disabled"
-        :aria-label="generating ? '停止生成' : '发送'"
-        :title="generating ? '停止生成' : '发送'"
-        @click="onAction"
+        :disabled="!canSend || disabled"
+        :aria-label="generating ? queueText.send : '发送'"
+        :title="generating ? queueText.send : '发送'"
+        @click="onSend"
       >
-        <!-- 生成中：方形「停止」图标；否则：向上箭头「发送」 -->
         <svg
-          v-if="generating"
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <rect x="6" y="6" width="12" height="12" rx="2.5" />
-        </svg>
-        <svg
-          v-else
           viewBox="0 0 24 24"
           width="20"
           height="20"
@@ -161,13 +201,35 @@
           <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
         </svg>
       </button>
+
+      <button
+        v-if="generating"
+        type="button"
+        class="acu-input-send is-stop"
+        aria-label="停止生成"
+        title="停止生成"
+        @click="emit('stop')"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="6" y="6" width="12" height="12" rx="2.5" />
+        </svg>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue'
-import type { SelectedFile, UploadConfig, ContextUsage } from '@/types'
+import type { SelectedFile, UploadConfig, ContextUsage, QueuedMessage, QueueLabels } from '@/types'
 import { uid, isImageType } from '@/utils/format'
 import ImagePreview from '@/components/ImagePreview/ImagePreview.vue'
 
@@ -181,6 +243,33 @@ const props = withDefaults(
      * 和 disabled 相互独立：想同时禁用输入框就两个都传。
      */
     generating?: boolean
+    /**
+     * 生成中是否允许发送（先排队）。
+     *
+     * 为 true 时生成中 Enter / 发送按钮**照常抛 `send`**，由宿主决定排不排队
+     * （库不知道流什么时候结束，也就无从替宿主排队）；为 false 时维持原行为：
+     * 生成中发送被拦下，Enter 不会误发。
+     *
+     * 注意与 `disabled` 是两个开关：想"生成中仍能打字并排队"就 **不要**传
+     * `disabled=generating`，只传 `generating` + `allowQueue`。
+     * @default false
+     */
+    allowQueue?: boolean
+    /**
+     * 排队中的消息（宿主持有）。非空时在附件行上方渲染排队条带：
+     * 标题 + 计数 + 提示，每条一行（序号 / 正文 / 附件名 / 移除），
+     * `queuePaused` 时队首额外给一颗「立即发送」。
+     * @default []
+     */
+    queued?: QueuedMessage[]
+    /**
+     * 队列是否处于暂停态（流被中止 / 上一条发送失败，等用户手动接续）。
+     * 只影响条带的提示文案与「立即发送」按钮 —— 库不参与调度。
+     * @default false
+     */
+    queuePaused?: boolean
+    /** 排队条带文案覆盖（宿主项目要走 i18n 时传自己的翻译） */
+    queueLabels?: Partial<QueueLabels>
     uploadConfig?: Partial<UploadConfig>
     maxLength?: number
     /**
@@ -197,6 +286,10 @@ const props = withDefaults(
     placeholder: '输入消息，Enter 发送，Shift+Enter 换行',
     disabled: false,
     generating: false,
+    allowQueue: false,
+    queued: () => [],
+    queuePaused: false,
+    queueLabels: () => ({}),
     uploadConfig: () => ({}),
     maxLength: 4000,
     contextUsage: null
@@ -206,6 +299,10 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'send', payload: { text: string; files: SelectedFile[] }): void
   (e: 'stop'): void
+  /** 从队列里移除一条（id 原样回传） */
+  (e: 'unqueue', id: string): void
+  /** 暂停态下手动接续：请宿主立刻发队首那条 */
+  (e: 'flush-queued'): void
 }>()
 
 const draft = ref('')
@@ -286,6 +383,16 @@ const usageView = computed(() => {
 
 const uploadEnabled = computed(() => uploadConfig.value.enabled)
 
+// 排队条带文案：宿主传了的用宿主的，没传的用这套中文默认值
+const queueText = computed(() => ({
+  title: props.queueLabels.title || '排队中',
+  hint: props.queueLabels.hint || '等本轮跑完依次发送',
+  pausedHint: props.queueLabels.pausedHint || '已暂停，点「立即发送」继续',
+  send: props.queueLabels.send || '加入队列',
+  flush: props.queueLabels.flush || '立即发送',
+  remove: props.queueLabels.remove || '移出队列'
+}))
+
 const canSend = computed(
   () => draft.value.trim().length > 0 || pendingFiles.value.length > 0
 )
@@ -313,20 +420,12 @@ function autoResize() {
   el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden'
 }
 
-// —— 右侧按钮：生成中 = 停止，否则 = 发送 ——
-function onAction() {
-  if (props.generating) {
-    // 生成中：只发停止信号，不动草稿（用户可能已经写好下一条了）
-    emit('stop')
-    return
-  }
-  onSend()
-}
-
 // —— 发送 ——
 function onSend() {
-  // 生成中即使输入框没被 disabled，也不允许再次发送（Enter 走到这里会被拦下）
-  if (props.generating) return
+  // 生成中默认不发（Enter 走到这里会被拦下）。
+  // 但宿主开了 allowQueue 时放行 —— 那一下不算"发送"，是"排队"：
+  // 由宿主在 send 事件里决定把它塞进队列，库不碰队列本体。
+  if (props.generating && !props.allowQueue) return
   if (!canSend.value || props.disabled) return
   const text = draft.value.trim()
   if (!text && pendingFiles.value.length === 0) return
@@ -475,6 +574,132 @@ defineExpose({
   font-weight: 500;
   pointer-events: none;
   z-index: 1;
+}
+
+/*
+  排队条带：生成中发送的消息在这儿等本轮结束由宿主依次发出。
+  与 .acu-input-attachments 同族（都是"还没发出去的东西"），但多一层浅盒子 ——
+  它是个有状态、可操作的小列表（标题 / 计数 / 移除 / 暂停时的手动接续），
+  不是一排缩略图，裸着摆会和附件行糊在一起。
+
+  配色默认中性面（surface-2）。宿主想换成自己的语义色（比如"待处理"档），
+  覆盖 --acu-queue-edge / --acu-queue-surface / --acu-queue-ink / --acu-queue-wash
+  四个变量即可，不必去动这里的 class。
+*/
+.acu-input-queue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--acu-space-1);
+  margin: var(--acu-space-2) var(--acu-space-2) 0;
+  padding: var(--acu-space-2) var(--acu-space-3);
+  border: 1px solid var(--acu-queue-edge, var(--acu-border));
+  border-radius: var(--acu-radius-sm);
+  background: var(--acu-queue-surface, var(--acu-surface-2));
+}
+
+.acu-input-queue-head {
+  display: flex;
+  align-items: center;
+  gap: var(--acu-space-2);
+  font-size: var(--acu-font-size-xs);
+  color: var(--acu-queue-ink, var(--acu-text-secondary));
+}
+.acu-input-queue-title { font-weight: 600; }
+.acu-input-queue-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--acu-radius-full);
+  background: var(--acu-queue-wash, var(--acu-surface-hover));
+  font-weight: 600;
+  text-align: center;
+}
+.acu-input-queue-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--acu-text-muted);
+}
+
+.acu-input-queue-item {
+  display: flex;
+  align-items: center;
+  gap: var(--acu-space-2);
+  font-size: var(--acu-font-size-sm);
+  color: var(--acu-text);
+}
+.acu-input-queue-index {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--acu-radius-full);
+  background: var(--acu-queue-wash, var(--acu-surface-hover));
+  color: var(--acu-queue-ink, var(--acu-text-secondary));
+  font-size: var(--acu-font-size-xs);
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.acu-input-queue-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acu-input-queue-atts {
+  flex-shrink: 0;
+  max-width: 34%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--acu-text-muted);
+  font-size: var(--acu-font-size-xs);
+}
+.acu-input-queue-att-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 暂停态的「立即发送」：文案按钮，不是图标 —— 它要说清"点了我就会把它发出去" */
+.acu-input-queue-btn {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--acu-queue-edge, var(--acu-border));
+  border-radius: var(--acu-radius-sm);
+  background: transparent;
+  color: var(--acu-queue-ink, var(--acu-text-secondary));
+  font-size: var(--acu-font-size-xs);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color var(--acu-duration-fast) var(--acu-easing),
+    border-color var(--acu-duration-fast) var(--acu-easing);
+  @include acu-focus-ring;
+  &:hover {
+    background: var(--acu-queue-wash, var(--acu-surface-hover));
+  }
+}
+.acu-input-queue-remove {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--acu-radius-full);
+  background: transparent;
+  color: var(--acu-text-muted);
+  cursor: pointer;
+  transition: background-color var(--acu-duration-fast) var(--acu-easing),
+    color var(--acu-duration-fast) var(--acu-easing);
+  @include acu-focus-ring;
+  &:hover {
+    background: var(--acu-surface-hover);
+    color: var(--acu-text);
+  }
 }
 
 .acu-input-attachments {

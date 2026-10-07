@@ -6,6 +6,7 @@
 
 - **流式输出**：逐字渲染 + 光标，支持 `content` / `reasoning` 双通道分片
 - **停止生成**：生成中发送按钮自动变停止按钮，点击抛 `stop` 事件，由业务侧中断请求
+- **生成中排队发送**：开 `allowQueue` 后生成中也能发 —— 消息先落进宿主的队列（输入框里的条带实时展示、可逐条移除），本轮结束由宿主依次发出；流被中止 / 发送失败时队列暂停，队首出现「立即发送」
 - **向用户提问**：内置提问面板（单选点击即提交 / 多选勾选后提交 / 可选自由输入），适合 agent 中途停下来向用户要一个选择
 - **会话列表**：独立的 `ConversationList`（搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式），和 `ChatContainer` 并排就是完整的对话应用骨架；窄到放不下两列时，演示页会自动切成「列表页 ↔ 对话页」两页，输入框则用 `showInput=false` 拆出来常驻在卡片最下方，**列表页也有一条**（VSCode 那种感觉）
 - **输入框可拆**：`ChatContainer` 传 `showInput=false` 就不渲染内置输入框，改由宿主用导出的 `ChatInput` 自己摆位；整个应用只挂一个实例，切页时草稿与待发附件都还在
@@ -152,12 +153,76 @@ function onStop() {
 | 想要的交互 | 传什么 |
 | --- | --- |
 | 生成中锁住输入框（按钮变停止） | `:disabled="busy" :generating="busy"` |
-| 生成中仍可继续输入下一条（按钮变停止） | 只传 `:generating="busy"` |
+| 生成中仍可继续输入下一条（按钮变停止，Enter 被拦下） | 只传 `:generating="busy"` |
+| 生成中也能发出去（先排队，本轮结束后依次发出） | `:generating="busy" :allow-queue="true" :queued="queue"`（见下一节） |
 | 只是锁住输入，不要停止按钮 | 只传 `:disabled="busy"` |
 
-第二种模式下 Enter 不会误发（`generating` 期间发送被拦掉），等生成结束再按 Enter 即可。
+第二种模式下 Enter 不会误发（`generating` 期间发送被拦掉），等生成结束再按 Enter 即可；想让那一下变成"排队"，走下面的 `allowQueue`。
 
 停止按钮用柔和的危险色：`--acu-error-soft` 作底、`--acu-error` 作图标色，覆盖这两个变量即可换色。
+
+## 生成中排队发送（`allowQueue` / `queued`）
+
+生成中用户往往已经想好了下一句。开 `allowQueue` 后生成期间的 Enter / 发送按钮**照常抛 `send`** —— 宿主把它塞进自己的队列，再把队列作为 `queued` 传回来，输入框里就长出排队条带：
+
+```
+排队中  2   等本轮跑完依次发送
+① 帮我把 README 补上                    📎 shot.png  ✕
+② 然后跑一遍测试                                     ✕
+[📎] [ 输入消息…                            ] [⊙] [↑] [■]
+```
+
+- **生成中**：发送按钮旁多一颗「加入队列」（↑，草稿为空时置灰）；停止按钮固定在**最右**，位置与空闲态一致 —— 排队和打断是两件事
+- **暂停**（`queuePaused`）：流被中止 / 上一条发送失败时置 `true`，条带提示换成 `pausedHint`，**队首**出现「立即发送」按钮
+- **事件**：`unqueue(id)`（点了 ✕）、`flush-queued`（点了「立即发送」）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { ChatContainer, uid, type QueuedMessage, type SelectedFile } from 'zen-ai-chat-ui'
+
+const busy = ref(false)
+const queue = ref<QueuedMessage[]>([])   // ← 队列本体留在宿主手里
+const paused = ref(false)
+
+function onSend({ text }: { text: string; files: SelectedFile[] }) {
+  if (busy.value) {
+    queue.value.push({ id: uid(), text })   // 生成中 → 排队（此时 busy 还是 true）
+    paused.value = false
+    return
+  }
+  startTurn(text)
+}
+
+// 本轮正常跑完 → 发队首；被停止 / 报错 → paused = true（内容留在队列里等手动接续）
+async function onTurnEnd(ok: boolean) {
+  if (!ok) { paused.value = queue.value.length > 0; return }
+  const next = queue.value.shift()
+  if (next) startTurn(next.text)
+}
+</script>
+
+<template>
+  <ChatContainer
+    :messages="messages"
+    :generating="busy"
+    :allow-queue="true"
+    :queued="queue"
+    :queue-paused="paused"
+    @send="onSend"
+    @unqueue="(id) => (queue = queue.filter(q => q.id !== id))"
+    @flush-queued="onTurnEnd(true)"
+  />
+</template>
+```
+
+⚠️ 别顺手把 `disabled` 也绑成 `busy` —— `disabled` 连输入框一起锁掉（`pointer-events: none`），排队就没得排了。三个开关的分工见上一节的表。
+
+> **库为什么不管队列本身**：它手里没有那条流的句柄（`fetch` / SSE / SDK 都在宿主侧），不知道流什么时候结束，也就无从决定"什么时候发下一条"。所以库只做两件事：生成中把发送**放行**、把队列**画出来**，再把「移除 / 立即发送」抛回去。
+
+**文案**：`queueLabels` 逐字段覆盖 —— `title`（默认「排队中」）/ `hint`（「等本轮跑完依次发送」）/ `pausedHint`（「已暂停，点「立即发送」继续」）/ `send`（「加入队列」）/ `flush`（「立即发送」）/ `remove`（「移出队列」）。
+
+**配色**：条带默认走中性面（`--acu-surface-2` + `--acu-border`）。想换成自己的语义色（比如"待处理"档的灰蓝），覆盖 `--acu-queue-edge` / `--acu-queue-surface` / `--acu-queue-ink` / `--acu-queue-wash` 四个变量即可，不用去碰库的 class。
 
 ## 向用户提问
 
@@ -484,6 +549,10 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 | `theme`             | `'light' \| 'dark' \| 'auto'` | `'light'`  | 主题                  |
 | `disabled`          | `boolean`                  | `false`    | 禁用输入（生成中）    |
 | `generating`        | `boolean`                  | `false`    | 生成中：发送按钮变停止按钮，点击抛 `stop` |
+| `allowQueue`        | `boolean`                  | `false`    | 生成中允许发送（先排队）：Enter / 发送按钮照常抛 `send`，由宿主入队（详见上方「生成中排队发送」） |
+| `queued`            | `QueuedMessage[]`          | `[]`       | 排队中的消息：非空时输入框里渲染排队条带（标题 / 计数 / 提示 / 序号 / 正文 / 附件名 / 移除） |
+| `queuePaused`       | `boolean`                  | `false`    | 队列暂停（流被中止 / 发送失败）：条带提示换成 `pausedHint`，队首出现「立即发送」 |
+| `queueLabels`       | `Partial<QueueLabels>`     | -          | 排队条带文案覆盖（走 i18n 时用） |
 | `showInput`         | `boolean`                  | `true`     | 是否渲染内置输入框。传 `false` 时输入框由宿主自己摆（配合导出的 `ChatInput`），见「窄屏怎么办」 |
 | `question`          | `AskUserQuestion \| null`  | `null`     | 向用户提问：非空时在消息列表与输入框之间渲染提问面板（详见上方） |
 | `questionSubmitting`| `boolean`                  | `false`    | 提问面板是否正在提交（请求飞行中，面板整体禁用） |
@@ -506,6 +575,8 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 | `retry`            | `ChatMessage`                                          | 重试失败消息     |
 | `followup-select`  | `(question: PresetQuestion, source: ChatMessage)`      | 点击追问建议     |
 | `stop`             | -                                                      | 点击输入框右侧「停止生成」 |
+| `unqueue`          | `id: string`                                           | 从排队条带移除一条（只有开了 `allowQueue` 才会发生） |
+| `flush-queued`     | -                                                      | 暂停态下点了队首「立即发送」：请宿主立刻把那条发出去 |
 | `answer`           | `string[]`                                             | 用户回答了提问面板（单选 1 项、多选 N 项，自由输入作为额外一项） |
 
 ### 其他可独立使用的组件
