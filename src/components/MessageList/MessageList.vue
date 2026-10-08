@@ -314,7 +314,9 @@ const railStyle = computed(() =>
 
 /** 车道变量要挂在 footer / question 的共同祖先上；单独用 MessageList 时退回自身 */
 function syncLaneVar(px: number) {
-  const host = wrapRef.value?.closest('.acu-chat') || wrapRef.value
+  // `closest` 的返回类型是 Element，`.style` 只在 HTMLElement 上 —— 显式带上泛型，
+  // 否则 dts 那一步会报 TS2339（`.acu-chat` 本来就一定是 HTMLElement）
+  const host = wrapRef.value?.closest<HTMLElement>('.acu-chat') || wrapRef.value
   host?.style.setProperty('--acu-rail-lane', `${px}px`)
 }
 

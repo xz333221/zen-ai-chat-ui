@@ -56,7 +56,8 @@
     "verify:plan": "node scripts/verify-plan-parse.mjs",
     "verify:mermaid": "node scripts/verify-mermaid.mjs",
     "build:avatars": "node scripts/build-avatars.mjs",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.js",
+    "verify:markdown": "node scripts/verify-markdown-perf.mjs"
   },
   "peerDependencies": {
     "vue": "^3.3.0"

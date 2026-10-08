@@ -414,10 +414,15 @@ function onCompositionEnd() {
 function autoResize() {
   const el = textareaRef.value
   if (!el) return
+  // 先把高度松开，量出来的 scrollHeight 才是内容真实高度。
+  // 然后**只读一次** scrollHeight —— 写 style 会让布局失效，再读一次就是第二次
+  // 强制回流，而这个函数是挂在 @input 上的，打字时每敲一个字都要付一遍。
   el.style.height = 'auto'
+  const content = el.scrollHeight
   const max = 200
-  el.style.height = Math.min(el.scrollHeight, max) + 'px'
-  el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden'
+  el.style.height = Math.min(content, max) + 'px'
+  const overflowY = content > max ? 'auto' : 'hidden'
+  if (el.style.overflowY !== overflowY) el.style.overflowY = overflowY
 }
 
 // —— 发送 ——

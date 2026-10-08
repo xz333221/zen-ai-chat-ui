@@ -89,7 +89,9 @@ function scheduleRender() {
   cancelAnimationFrame(rafId)
   // 用 rAF 节流：流式高频追加时，每帧最多渲染一次
   rafId = requestAnimationFrame(() => {
-    html.value = render(props.source)
+    // streaming 传下去：正在写、还没闭合的那个代码块按纯文本渲染（见 useMarkdown 的
+    // RenderOptions）—— 它每帧都在变，高亮它等于每帧白跑一次 shiki
+    html.value = render(props.source, { streaming: props.streaming })
     // v-html 的内容要等本次 patch 完才进 DOM，nextTick 之后再去找图表块
     nextTick(() => scheduleHydrate())
   })
@@ -104,12 +106,12 @@ watch(
 watch(isShikiReady, (ready) => {
   if (ready) scheduleRender()
 })
-// 流式结束 → 把期间搁置的图表画出来
+// 流式结束 → 重渲染一次拿回高亮，并把期间搁置的图表画出来。
+// 两个方向都要重渲染：开始流式时最后一个块要降级成纯文本，结束时要把高亮补回来。
+// （补高亮这一步不能省 —— 服务端历史消息走的是非流式路径，看起来必须一致）
 watch(
   () => props.streaming,
-  (streaming) => {
-    if (!streaming) scheduleHydrate(0)
-  }
+  () => scheduleRender()
 )
 
 // 图表 SVG 的配色是烘进 SVG 的（不像正文那样走 CSS 变量），换主题要重画一遍；
