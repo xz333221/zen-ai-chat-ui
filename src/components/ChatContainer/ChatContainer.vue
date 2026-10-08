@@ -380,6 +380,9 @@ defineExpose({
 .acu-chat-footer {
   flex-shrink: 0;
   padding: var(--acu-space-3) var(--acu-space-4) var(--acu-space-4);
+  // 侧边条在窄容器里撑出车道时（--acu-rail-lane，由 MessageList 实测下发），
+  // 输入框与消息列一起让位 —— 两者的左边缘保持对齐
+  padding-left: calc(var(--acu-space-4) + var(--acu-rail-lane, 0px));
   background: linear-gradient(to top, var(--acu-bg) 70%, transparent);
 }
 
@@ -390,6 +393,7 @@ defineExpose({
   max-width: var(--acu-max-width);
   margin: 0 auto;
   padding: 0 var(--acu-space-4);
+  padding-left: calc(var(--acu-space-4) + var(--acu-rail-lane, 0px));
 
   // showInput=false（输入框在宿主那边）时提问面板就是容器的最后一格，
   // 底下得自己留一口气，否则会贴着容器底边

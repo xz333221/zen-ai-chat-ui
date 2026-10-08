@@ -5,7 +5,7 @@
     - 提供"回到底部"浮动按钮
     - 可选：渲染追问建议（每条 assistant 完成后，调用 followupProvider 或取静态 followupItems）
   -->
-  <div class="acu-message-list-wrap">
+  <div ref="wrapRef" class="acu-message-list-wrap">
     <div ref="scrollRef" class="acu-message-list" @scroll="handleScroll">
       <div class="acu-message-list-inner">
         <template v-for="msg in messages" :key="msg.id">
@@ -49,20 +49,24 @@
       </transition>
     </div>
 
-    <!-- 侧边消息条：一条消息一根短横条，点击可跳转 -->
+    <!-- 侧边消息条：一条消息一根短横条，点击可跳转。
+         left 由 MessageList 实测内容列位置后注入（见 measureRailLane）——
+         MessageRail 自带的 CSS 公式只是没被量到时的兜底 -->
     <MessageRail
       v-if="railEnabled"
+      ref="railRef"
       :messages="messages"
       :active-id="activeMsgId"
       :config="messageRailConfig"
       :assistant-name="assistantName"
+      :style="railStyle"
       @select="onRailSelect"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed, nextTick, onMounted } from 'vue'
+import { ref, reactive, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import type {
   ChatMessage,
   PresetQuestion,
@@ -280,6 +284,96 @@ const railEnabled = computed(() => props.messageRailConfig?.enable === true)
 /** 视口中心所在的消息 id（侧边条据此高亮） */
 const activeMsgId = ref<string | null>(null)
 
+// —— 侧边条的车道（lane）——
+//
+// 条要站在内容列**左边**的空白里，但"内容列在哪"不能靠 --acu-max-width 的公式假设：
+// 宿主随时可能把 inner 覆盖成全宽（zen-gitsync 的任务对话流就是 max-width:100%），
+// 公式（50% - max/2 - 40px）会把自己算进内容里 —— 实测任务执行弹窗里条压进内容 60px，
+// 正好盖住「思考」块和工具行（2026-10-08 用户截图）。
+//
+// 所以量真实的 inner 左边缘，按"放不放得下"分两种情况：
+//   · 放得下（列左侧空白 ≥ 46px）→ 条站在 列左-40px 处，车道 0，与旧公式同位
+//   · 放不下 → 撑出一条车道：消息列 / 输入框 / 提问面板的左 padding 一起加上它，
+//     条退到 6px。车道变量（--acu-rail-lane）挂在 .acu-chat 上，footer / question
+//     才能一起让位（MessageList 够不到它们的样式，只能从祖先下发变量）。
+const wrapRef = ref<HTMLElement | null>(null)
+const railRef = ref<InstanceType<typeof MessageRail> | null>(null)
+const railLanePx = ref(0)
+const railLeftPx = ref<number | null>(null)
+let railRO: ResizeObserver | null = null
+
+/** 条的右缘到内容列左缘的设计间距（沿用旧公式的 40px：最宽条 26 + 组件内边距 12 + 2） */
+const RAIL_CLEARANCE = 40
+const RAIL_MIN_LEFT = 6
+/** 真的挤到内容上时，车道额外留的呼吸位 */
+const RAIL_LANE_GAP = 8
+
+const railStyle = computed(() =>
+  railLeftPx.value === null ? undefined : { left: `${railLeftPx.value}px` }
+)
+
+/** 车道变量要挂在 footer / question 的共同祖先上；单独用 MessageList 时退回自身 */
+function syncLaneVar(px: number) {
+  const host = wrapRef.value?.closest('.acu-chat') || wrapRef.value
+  host?.style.setProperty('--acu-rail-lane', `${px}px`)
+}
+
+function measureRailLane() {
+  const wrap = wrapRef.value
+  if (!wrap) return
+  const rail = railRef.value?.$el as HTMLElement | undefined
+  const inner = wrap.querySelector<HTMLElement>('.acu-message-list-inner')
+  if (!railEnabled.value || !rail || !inner) {
+    // 条不在（未启用 / 只有 ≤1 轮）：车道归零，别把上一轮的让位残留在输入框上
+    railLeftPx.value = null
+    if (railLanePx.value !== 0) {
+      railLanePx.value = 0
+      syncLaneVar(0)
+    }
+    return
+  }
+  const wrapLeft = wrap.getBoundingClientRect().left
+  // 车道本身会把内容列往右推：量「原始位置」要把它减掉，否则量一次缩一次
+  const innerLeft0 = inner.getBoundingClientRect().left - wrapLeft - railLanePx.value
+  const railWidth = rail.getBoundingClientRect().width || 38
+  const railLeft = Math.max(RAIL_MIN_LEFT, innerLeft0 - RAIL_CLEARANCE)
+  railLeftPx.value = railLeft
+  // 只有真的压到内容上才撑车道（roomy 情况保持 2px 设计间距，不动旧几何）
+  const overlap = railLeft + railWidth - innerLeft0
+  const lane = overlap > 0 ? Math.ceil(overlap + RAIL_LANE_GAP) : 0
+  if (lane !== railLanePx.value) {
+    railLanePx.value = lane
+    syncLaneVar(lane)
+  }
+}
+
+watch(railEnabled, (on) => {
+  if (on) nextTick(() => measureRailLane())
+})
+
+watch(
+  () => props.messages.length,
+  () => {
+    // 轮次增减会让条出现 / 消失，车道跟着重算
+    nextTick(() => measureRailLane())
+  }
+)
+
+onMounted(() => {
+  if (railEnabled.value && typeof ResizeObserver !== 'undefined' && wrapRef.value) {
+    railRO = new ResizeObserver(() => measureRailLane())
+    railRO.observe(wrapRef.value)
+  }
+  nextTick(() => measureRailLane())
+})
+
+onBeforeUnmount(() => {
+  railRO?.disconnect()
+  railRO = null
+  // 条没了车道也得撤，不然 footer 的让位会残留
+  syncLaneVar(0)
+})
+
 /**
  * 以消息列表视口的**垂直中心**为基准，找最后一条跨越中心线的消息。
  * 用 getBoundingClientRect 而不是 offsetTop：前者天然把滚动偏移算进去，
@@ -349,7 +443,12 @@ watch(
 )
 
 watch(railEnabled, (on) => {
-  if (on) nextTick(() => computeActiveId())
+  if (on) {
+    nextTick(() => {
+      computeActiveId()
+      measureRailLane()
+    })
+  }
 })
 
 onMounted(() => {
@@ -382,11 +481,10 @@ defineExpose({ scrollToBottom })
   // gutter 在 .acu-chat-footer 上 —— 两边各算各的，输入框的框线会比消息列
   // 每侧多探出 16px。放到外层后内容列即 max-width 本身，和输入框对齐。
   //
-  // 选这一层而不是 .acu-message-list-inner 的最大宽度 +32px，是因为
-  // MessageRail 的 left 算式依赖「内容列左边缘 = 50% - max-width/2」：
-  // inner 加宽会把那条假定推歪 16px，侧边条跟着偏。给滚动容器加对称
-  // padding 则不动居中盒的位置，算式继续成立。
-  padding: 0 var(--acu-space-4);
+  // 左侧在 gutter 之上再叠加 --acu-rail-lane（见 measureRailLane）：容器窄到
+  // 侧边条放不下时，整个内容列往右让出一条车道，条就不再压在内容上。
+  // 宽容器里车道恒为 0，几何与不开侧边条时完全一致。
+  padding: 0 var(--acu-space-4) 0 calc(var(--acu-space-4) + var(--acu-rail-lane, 0px));
   @include acu-scrollbar;
 
   scroll-behavior: auto;
