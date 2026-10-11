@@ -7,8 +7,22 @@
 
     计划类调用（update_plan / TodoWrite …）例外：它整块渲染成 PlanBlock 清单。
     原始参数 JSON 仍可展开查看，但默认不展开 —— 一坨 JSON 对读计划没用。
+
+    提问类调用（ask_user）同理例外：答完之后整块渲染成只读留档的 AskUserPanel。
+    这一轮问答本来就该留在对话里跟着滚，折成一坨 `ask_user {…}` 的 JSON 等于没留。
+    还没答（面板正等用户点选）时不渲染，交回普通工具行 —— 那种时刻面板由宿主摆着。
   -->
-  <div v-if="plan" class="acu-plan-wrap">
+  <AskUserPanel
+    v-if="askUser"
+    class="acu-toolcall-askuser"
+    :question="askUser.question"
+    :options="askUser.options"
+    :multiple="askUser.multiple"
+    :allow-free-text="askUser.allowFreeText"
+    :answers="askUser.answers"
+    :labels="askUserLabels"
+  />
+  <div v-else-if="plan" class="acu-plan-wrap">
     <PlanBlock
       :steps="plan.steps"
       :note="plan.note"
@@ -81,17 +95,21 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { PlanConfig, ToolCall, ToolCallStatus } from '@/types'
+import type { AskUserLabels, PlanConfig, ToolCall, ToolCallStatus } from '@/types'
 import { readPlan } from '@/utils/plan'
+import { readAskUser } from '@/utils/askUser'
 import PlanBlock from '@/components/PlanBlock/PlanBlock.vue'
+import AskUserPanel from '@/components/AskUserPanel/AskUserPanel.vue'
 
 const props = withDefaults(
   defineProps<{
     toolCall: ToolCall
     /** 计划块展示配置（只在 plan 调用上生效） */
     planConfig?: PlanConfig
+    /** 提问留档的文案覆盖（只在 ask_user 调用上生效） */
+    askUserLabels?: Partial<AskUserLabels>
   }>(),
-  { planConfig: undefined }
+  { planConfig: undefined, askUserLabels: undefined }
 )
 
 const expanded = ref(false)
@@ -104,6 +122,9 @@ const status = computed<ToolCallStatus>(() => props.toolCall.status || 'pending'
  * 只带原始参数，宿主不一定来得及逐个工具名去适配。
  */
 const plan = computed(() => readPlan(props.toolCall))
+
+/** 问答留档：ask_user 且已经答完才拿得到（还在等回答时面板由宿主摆着） */
+const askUser = computed(() => readAskUser(props.toolCall))
 
 const rawLabel = computed(() => props.planConfig?.labels?.raw || '原始参数')
 
@@ -119,6 +140,11 @@ function formatArgs(args: string): string {
 <style lang="scss" scoped>
 // 计划调用外面那层：清单 + 可展开的原始参数
 .acu-plan-wrap {
+  margin: var(--acu-space-1) 0;
+}
+
+// 提问留档：面板自带 margin，这里收一档 —— 它夹在工具调用区里，不是独立一块
+.acu-toolcall-askuser {
   margin: var(--acu-space-1) 0;
 }
 

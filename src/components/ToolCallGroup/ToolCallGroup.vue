@@ -53,9 +53,15 @@
       </svg>
     </button>
 
-    <!-- 调用列表：折叠时只保留最新一个（计划块另算，见下） -->
+    <!-- 调用列表：折叠时只保留最新一个（计划块与问答留档另算，见下） -->
     <div class="acu-toolgroup-list">
-      <ToolCallBlock v-for="tc in visibleCalls" :key="tc.id" :tool-call="tc" :plan-config="planConfig" />
+      <ToolCallBlock
+        v-for="tc in visibleCalls"
+        :key="tc.id"
+        :tool-call="tc"
+        :plan-config="planConfig"
+        :ask-user-labels="askUserLabels"
+      />
     </div>
 
     <!--
@@ -67,13 +73,29 @@
     <div v-if="pinnedPlan" class="acu-toolgroup-plan">
       <ToolCallBlock :tool-call="pinnedPlan" :plan-config="planConfig" />
     </div>
+
+    <!--
+      问答留档常驻区，与计划块同理。
+      提问之后模型还会接着调别的工具，那一行转眼就不是"最新一个"了 —— 折进组里等于
+      这轮问答在页面上消失，而它恰恰是最需要回看的东西（用户自己答了什么）。
+      一条消息里一般只有一次提问；真出现多轮追问就都按调用顺序钉着。
+    -->
+    <div v-if="pinnedAskUsers.length" class="acu-toolgroup-askuser">
+      <ToolCallBlock
+        v-for="tc in pinnedAskUsers"
+        :key="tc.id"
+        :tool-call="tc"
+        :ask-user-labels="askUserLabels"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type { PlanConfig, ToolCall, ToolCallStatus, ToolCallsConfig } from '@/types'
+import type { AskUserLabels, PlanConfig, ToolCall, ToolCallStatus, ToolCallsConfig } from '@/types'
 import { readPlan } from '@/utils/plan'
+import { readAskUser } from '@/utils/askUser'
 import ToolCallBlock from '@/components/ToolCallBlock/ToolCallBlock.vue'
 
 const props = withDefaults(
@@ -84,10 +106,13 @@ const props = withDefaults(
     config?: ToolCallsConfig
     /** 计划块展示配置（透传给每个调用） */
     planConfig?: PlanConfig
+    /** 提问留档的文案覆盖（透传给每个调用） */
+    askUserLabels?: Partial<AskUserLabels>
   }>(),
   {
     config: undefined,
-    planConfig: undefined
+    planConfig: undefined,
+    askUserLabels: undefined
   }
 )
 
@@ -123,6 +148,17 @@ const pinnedPlan = computed<ToolCall | null>(() => {
 })
 
 /**
+ * 折叠态常驻的问答留档。
+ *
+ * 与计划块同一个理由：它往往不是"最新一个"调用（模型问完会接着干别的），
+ * 折进组里这轮问答就从页面上消失了。一条消息一般只问一次，多轮追问就都钉着。
+ */
+const pinnedAskUsers = computed<ToolCall[]>(() => {
+  if (!grouped.value || expanded.value) return []
+  return props.toolCalls.filter((tc) => readAskUser(tc))
+})
+
+/**
  * 实际渲染出来的调用列表：折叠态只留最新一个（计划块在下面单独渲染，这里要去重）。
  *
  * 为什么算好列表用 v-for，而不是给每一行挂 v-show（2026-09-29 改）：
@@ -136,10 +172,13 @@ const pinnedPlan = computed<ToolCall | null>(() => {
 const visibleCalls = computed(() => {
   if (!grouped.value || expanded.value) return props.toolCalls
   const last = props.toolCalls[props.toolCalls.length - 1]
+  if (!last) return []
   const pinned = pinnedPlan.value
   // 最后一个恰好就是被钉住的计划 → 交给下面的常驻区渲染，这里不再重复
-  if (pinned && last && last.id === pinned.id) return []
-  return last ? [last] : []
+  if (pinned && last.id === pinned.id) return []
+  // 同理：最后一个是问答留档 → 交给问答常驻区
+  if (readAskUser(last)) return []
+  return [last]
 })
 
 /** 聚合状态：running 优先，其次 error，最后 done */

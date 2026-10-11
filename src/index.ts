@@ -68,6 +68,15 @@ export {
 } from './utils/plan'
 export type { ParsedPlan } from './utils/plan'
 
+// 提问（ask_user）解析：宿主拿原始工具参数与结果就能得到问答留档
+export {
+  isAskUserTool,
+  parseAskUserArgs,
+  parseAskUserAnswers,
+  readAskUser
+} from './utils/askUser'
+export type { AskUserRecord } from './utils/askUser'
+
 // 内置 AI 品牌头像（由 scripts/build-avatars.mjs 生成）
 export {
   AI_AVATARS,

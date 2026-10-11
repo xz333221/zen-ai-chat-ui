@@ -81,7 +81,12 @@
 
         <!-- 工具调用（仅 assistant）：多个调用默认折叠，只展示最新一个 -->
         <div v-if="hasToolCalls" class="acu-bubble-toolcalls">
-          <ToolCallGroup :tool-calls="message.toolCalls || []" :config="toolCallsConfig" :plan-config="planConfig" />
+          <ToolCallGroup
+            :tool-calls="message.toolCalls || []"
+            :config="toolCallsConfig"
+            :plan-config="planConfig"
+            :ask-user-labels="askUserLabels"
+          />
         </div>
 
         <!-- 正文 -->
@@ -150,6 +155,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type {
+  AskUserLabels,
   ChatMessage,
   ChatAttachment,
   ToolCallsConfig,
@@ -178,6 +184,8 @@ const props = withDefaults(
     toolCallsConfig?: ToolCallsConfig
     /** 计划块展示配置（计划类工具调用的标题 / 进度 / 文案） */
     planConfig?: PlanConfig
+    /** 提问留档的文案覆盖（ask_user 答完之后那块的文案） */
+    askUserLabels?: Partial<AskUserLabels>
     /** 思考块展示配置（高度上限 / 内部滚动 / 流式跟随） */
     thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
@@ -194,6 +202,7 @@ const props = withDefaults(
     showAvatar: true,
     toolCallsConfig: undefined,
     planConfig: undefined,
+    askUserLabels: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,

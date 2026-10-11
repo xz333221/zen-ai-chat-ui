@@ -17,6 +17,7 @@
             :show-avatar="showAvatar"
             :tool-calls-config="toolCallsConfig"
             :plan-config="planConfig"
+            :ask-user-labels="askUserLabels"
             :thinking-config="thinkingConfig"
             :actions-config="actionsConfig"
             :message-meta-config="messageMetaConfig"
@@ -68,6 +69,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import type {
+  AskUserLabels,
   ChatMessage,
   PresetQuestion,
   FollowupConfig,
@@ -100,6 +102,8 @@ const props = withDefaults(
     toolCallsConfig?: ToolCallsConfig
     /** 计划块展示配置（计划类工具调用的标题 / 进度 / 文案） */
     planConfig?: PlanConfig
+    /** 提问留档的文案覆盖（ask_user 答完之后那块的文案） */
+    askUserLabels?: Partial<AskUserLabels>
     /** 思考块展示配置（默认正文超高后内部滚动） */
     thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
@@ -117,6 +121,7 @@ const props = withDefaults(
     followup: undefined,
     toolCallsConfig: undefined,
     planConfig: undefined,
+    askUserLabels: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,

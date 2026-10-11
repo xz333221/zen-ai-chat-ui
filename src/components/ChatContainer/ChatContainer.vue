@@ -34,6 +34,7 @@
         :actions-config="actionsConfig"
         :message-meta-config="messageMetaConfig"
         :message-rail-config="messageRailConfig"
+        :ask-user-labels="questionLabels"
         @retry="(m) => $emit('retry', m)"
         @followup-select="onFollowupSelect"
       />
