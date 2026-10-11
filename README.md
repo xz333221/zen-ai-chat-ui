@@ -255,7 +255,9 @@ function onAnswer(answers: string[]) {
 }
 ```
 
-![已回答留档：选项保留、所选那项打勾、其余淡化](docs/ask-user-answered.png)
+![已回答留档（默认收起）：一行「✓ 已回答 · 答了什么」，点一下展开](docs/ask-user-answered-collapsed.png)
+
+![展开后：选项保留、所选那项打勾、其余淡化](docs/ask-user-answered.png)
 
 交互约定：
 
@@ -265,9 +267,10 @@ function onAnswer(answers: string[]) {
 - **提交中**：传 `questionSubmitting`，面板整体禁用；组件内部还有一层闩锁，防止请求回流前连点导致重复提交
 - **失败重试**：`questionSubmitting` 从 `true` 回到 `false` 时闩锁自动放开、单选的"已选"标记撤回，面板可再次提交
 - **留档**：把答案回传给 `questionAnswers`，面板原地转成只读「已回答」（选项保留、所选那项打勾、其余淡化、输入框换成答案 chip）。**不传的话这轮问答在页面上不留痕**——宿主清掉 `question` 就没了，只剩你自己 push 的那条用户消息
+- **留档默认收起成一行**：面板常被钉在输入框上方，答完之后整块选项一直杵着会把对话挤掉大半屏，而这时用户要看的是对话本身。收起后只留「✓ 已回答 · 答了什么」，整行是个开关，点一下展开回看完整问题与选项。想让它答完仍然整块铺开，传 `:default-answered-expanded="true"`
 - **换问题**：`question` 变化时自动清空上一轮的勾选与输入；留档态要宿主自己把 `questionAnswers` 清回 `[]`
 
-文案默认中文（`等待你的回答` / `已回答` / `输入回答` / `提交回答`），需要 i18n 就传 `questionLabels`：
+文案默认中文（`等待你的回答` / `已回答` / `输入回答` / `提交回答`，展开开关的无障碍文案 `展开完整问答` / `收起完整问答`），需要 i18n 就传 `questionLabels`：
 
 ```vue
 <ChatContainer
@@ -289,7 +292,7 @@ function onAnswer(answers: string[]) {
   question="选一个目标分支"
   :options="['main', 'develop']"
   :submitting="submitting"
-  :answers="answers"      <!-- 传了就是只读留档态，不传就是可交互的新提问 -->
+  :answers="answers"      <!-- 传了就是只读留档态（默认收起成一行），不传就是可交互的新提问 -->
   @answer="onAnswer"
 />
 ```
