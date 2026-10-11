@@ -478,6 +478,10 @@ export interface AskUserLabels {
   placeholder: string
   /** 提交按钮文案 */
   submit: string
+  /** 只读留档态收起时，展开开关的无障碍文案 @default 展开完整问答 */
+  expand?: string
+  /** 只读留档态展开时，收起开关的无障碍文案 @default 收起完整问答 */
+  collapse?: string
 }
 
 /** 会话列表里的一条会话（见 ConversationList） */

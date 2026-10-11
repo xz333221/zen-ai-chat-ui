@@ -11,20 +11,32 @@
       （不等宿主回传 submitting / 清空 question，否则用户只看到"整块变灰"）
     - 宿主想把这轮问答留在页面上当记录，就把答案回传给 answers：
       面板进入只读「已回答」态，选项原样保留、所选那项打勾，输入框换成答案 chip
+
+    只读留档态默认**收起成一行**（标题 + 答案摘要 + 展开箭头）：
+    提问面板常常被宿主钉在输入框上方，答完之后整块六七个选项一直杵在那里，
+    把对话挤掉大半屏。收起后它只是一行"这轮问过什么、我答了什么"的记录，
+    点一下就能展开回看完整问题与选项（见 defaultAnsweredExpanded）。
   -->
   <section
     class="acu-ask-user"
-    :class="{ 'is-answered': isAnswered }"
+    :class="{ 'is-answered': isAnswered, 'is-collapsed': readonly && !expanded }"
     role="group"
     aria-live="polite"
     :aria-labelledby="titleId"
     :aria-busy="submitting"
   >
-    <div :id="titleId" class="acu-ask-user-title">
+    <!-- 只读留档态：整行是个展开/收起开关，一行放得下"已回答 + 答了什么" -->
+    <button
+      v-if="readonly"
+      :id="titleId"
+      type="button"
+      class="acu-ask-user-title is-toggle"
+      :aria-expanded="expanded"
+      :aria-label="expanded ? collapseLabel : expandLabel"
+      @click="expanded = !expanded"
+    >
       <span class="acu-ask-user-icon" aria-hidden="true">
-        <!-- 已作答：状态从「等你回答」变成「你的回答」，图标也跟着从问句换成对勾 -->
         <svg
-          v-if="isAnswered"
           viewBox="0 0 24 24"
           width="15"
           height="15"
@@ -36,8 +48,30 @@
         >
           <polyline points="20 6 9 17 4 12" />
         </svg>
+      </span>
+      <span class="acu-ask-user-title-text">{{ answeredTitle }}</span>
+      <!-- 只读留档态下把答案也念一遍：光看勾选态，读屏用户不知道提交了什么 -->
+      <span class="acu-ask-user-title-answer">{{ chosen.join(' / ') }}</span>
+      <svg
+        class="acu-ask-user-chevron"
+        :class="{ 'is-expanded': expanded }"
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        width="12"
+        height="12"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </button>
+
+    <div v-else :id="titleId" class="acu-ask-user-title">
+      <span class="acu-ask-user-icon" aria-hidden="true">
         <svg
-          v-else
           viewBox="0 0 24 24"
           width="15"
           height="15"
@@ -50,72 +84,73 @@
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
         </svg>
       </span>
-      <span>{{ isAnswered ? answeredTitle : title }}</span>
-      <!-- 只读留档态下把答案也念一遍：光看勾选态，读屏用户不知道提交了什么 -->
-      <span v-if="readonly" class="acu-ask-user-title-answer">{{ chosen.join(' / ') }}</span>
+      <span>{{ title }}</span>
     </div>
 
-    <div class="acu-ask-user-question">{{ question }}</div>
+    <!-- 只读留档态收起时，问题与选项一起藏起来（展开态原样铺开） -->
+    <template v-if="!readonly || expanded">
+      <div class="acu-ask-user-question">{{ question }}</div>
 
-    <div v-if="options.length" class="acu-ask-user-options">
-      <!-- 多选：原生 checkbox，键盘天然可达 -->
-      <template v-if="multiple">
-        <label
-          v-for="option in options"
-          :key="option"
-          class="acu-ask-user-option is-checkbox"
-          :class="{ 'is-selected': chosen.includes(option), 'is-dimmed': isDimmed(option) }"
-        >
-          <input
-            type="checkbox"
-            :checked="chosen.includes(option)"
-            :disabled="disabled"
-            @change="toggleOption(option)"
-          />
-          <span>{{ option }}</span>
-        </label>
-      </template>
-
-      <!-- 单选：点选项即提交 -->
-      <template v-else>
-        <button
-          v-for="option in options"
-          :key="option"
-          type="button"
-          class="acu-ask-user-option"
-          :class="{ 'is-selected': marked.includes(option), 'is-dimmed': isDimmed(option) }"
-          :disabled="disabled"
-          @click="submitSingle(option)"
-        >
-          <!-- 纯装饰：选中标记。不改既有元素的语义与 class，见 ui-polish 的例外条款 -->
-          <svg
-            v-if="marked.includes(option)"
-            class="acu-ask-user-check"
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            width="13"
-            height="13"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+      <div v-if="options.length" class="acu-ask-user-options">
+        <!-- 多选：原生 checkbox，键盘天然可达 -->
+        <template v-if="multiple">
+          <label
+            v-for="option in options"
+            :key="option"
+            class="acu-ask-user-option is-checkbox"
+            :class="{ 'is-selected': chosen.includes(option), 'is-dimmed': isDimmed(option) }"
           >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-          <span>{{ option }}</span>
-        </button>
-      </template>
-    </div>
+            <input
+              type="checkbox"
+              :checked="chosen.includes(option)"
+              :disabled="disabled"
+              @change="toggleOption(option)"
+            />
+            <span>{{ option }}</span>
+          </label>
+        </template>
 
-    <!-- 已作答且原样只读时，自由输入的答案没有输入框可落脚，改成 chip 列出来 -->
-    <div v-if="extraAnswers.length" class="acu-ask-user-extras">
-      <span
-        v-for="answer in extraAnswers"
-        :key="answer"
-        class="acu-ask-user-extra"
-      >{{ answer }}</span>
-    </div>
+        <!-- 单选：点选项即提交 -->
+        <template v-else>
+          <button
+            v-for="option in options"
+            :key="option"
+            type="button"
+            class="acu-ask-user-option"
+            :class="{ 'is-selected': marked.includes(option), 'is-dimmed': isDimmed(option) }"
+            :disabled="disabled"
+            @click="submitSingle(option)"
+          >
+            <!-- 纯装饰：选中标记。不改既有元素的语义与 class，见 ui-polish 的例外条款 -->
+            <svg
+              v-if="marked.includes(option)"
+              class="acu-ask-user-check"
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              width="13"
+              height="13"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span>{{ option }}</span>
+          </button>
+        </template>
+      </div>
+
+      <!-- 已作答且原样只读时，自由输入的答案没有输入框可落脚，改成 chip 列出来 -->
+      <div v-if="extraAnswers.length" class="acu-ask-user-extras">
+        <span
+          v-for="answer in extraAnswers"
+          :key="answer"
+          class="acu-ask-user-extra"
+        >{{ answer }}</span>
+      </div>
+    </template>
 
     <form v-if="showFreeText" class="acu-ask-user-form" @submit.prevent="submitForm">
       <input
@@ -207,6 +242,16 @@ const props = withDefaults(
      * @default []
      */
     answers?: string[]
+    /**
+     * 只读留档态是否默认展开。
+     *
+     * 默认 `false`（收起成一行）：面板常被宿主钉在输入框上方，答完之后整块选项
+     * 一直占着大半个屏幕，而这时用户要看的是对话本身。收起后只留一行
+     * 「✓ 已回答 · 答了什么」，点一下展开回看完整问题与选项。
+     * 宿主想让它答完仍然整块铺开，传 `true`。
+     * @default false
+     */
+    defaultAnsweredExpanded?: boolean
     /** 文案覆盖（宿主项目要走 i18n 时传自己的翻译） */
     labels?: Partial<AskUserLabels>
   }>(),
@@ -216,6 +261,7 @@ const props = withDefaults(
     allowFreeText: true,
     submitting: false,
     answers: () => [],
+    defaultAnsweredExpanded: false,
     labels: undefined
   }
 )
@@ -227,6 +273,9 @@ const emit = defineEmits<{
 
 const titleId = uid('acu-ask-user-title')
 const freeText = ref('')
+
+// 只读留档态的展开态。收起时只留标题那一行，问题与选项都藏起来
+const expanded = ref(props.defaultAnsweredExpanded)
 
 // 已勾选 / 已点中的那几项。多选提交后不清空 —— 勾选态就是"我选了什么"
 const picked = ref<string[]>([])
@@ -250,6 +299,8 @@ const showFreeText = computed(
 const placeholder = computed(() => props.labels?.placeholder ?? '输入回答')
 const title = computed(() => props.labels?.title ?? '等待你的回答')
 const answeredTitle = computed(() => props.labels?.answered ?? '已回答')
+const expandLabel = computed(() => props.labels?.expand ?? '展开完整问答')
+const collapseLabel = computed(() => props.labels?.collapse ?? '收起完整问答')
 
 /** 只读态下，不在选项里的那些答案（自由输入的内容） */
 const extraAnswers = computed(() =>
@@ -275,6 +326,12 @@ watch(
     submitted.value = false
   }
 )
+
+// 进入只读留档态时回到默认展开态：上一轮用户手动展开过，不该让下一轮一上来就铺开
+// （answers 从空变非空 = 这一轮答完了；反过来由宿主清空时无需处理）
+watch(readonly, (val) => {
+  if (val) expanded.value = props.defaultAnsweredExpanded
+})
 
 // 提交失败时业务侧会把 submitting 放回 false —— 放开闩锁，允许重试
 watch(
@@ -325,6 +382,12 @@ function submitForm() {
   &.is-answered .acu-ask-user-option {
     cursor: default;
   }
+
+  // 收起态只剩标题一行，上下留白跟着收一档，别让它看着还像一整块面板
+  &.is-collapsed {
+    padding-top: var(--acu-space-2);
+    padding-bottom: var(--acu-space-2);
+  }
 }
 
 .acu-ask-user-title {
@@ -336,22 +399,64 @@ function submitForm() {
   color: var(--acu-primary);
 }
 
+// 收起态整行是个开关：按钮外壳要抹掉 UA 的默认样式，但保留键盘焦点环
+.acu-ask-user-title.is-toggle {
+  @include acu-focus-ring;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--acu-primary);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover .acu-ask-user-chevron {
+    color: var(--acu-text);
+  }
+}
+
+// 「已回答」三个字必须独占自己那一格：它是 flex 项，默认会被右边那串答案压到
+// min-content（一个字宽）→ 三个字竖着摞成一列。收起态下尤其显眼
+.acu-ask-user-title-text {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .acu-ask-user-icon {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-// 只读留档态：把选了什么再念一遍（勾选态只对看得见的人有意义）
+// 只读留档态：把选了什么再念一遍（勾选态只对看得见的人有意义）。
+// 单行省略：这行是摘要不是正文，完整答案展开后就在选项的勾选态里
 .acu-ask-user-title-answer {
+  min-width: 0;
   font-weight: 500;
   color: var(--acu-text-secondary);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   &::before {
     content: '·';
     margin-right: var(--acu-space-1-5);
     color: var(--acu-text-muted);
+  }
+}
+
+.acu-ask-user-chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--acu-text-muted);
+  transition: transform var(--acu-duration) var(--acu-easing);
+
+  &.is-expanded {
+    transform: rotate(180deg);
   }
 }
 
