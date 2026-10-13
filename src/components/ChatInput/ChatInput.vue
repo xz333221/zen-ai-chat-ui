@@ -1,11 +1,12 @@
 <template>
   <!--
-    输入框：自适应高度 textarea + 附件上传（按钮 / 拖拽）+ 预览 + 发送。
+    输入框：自适应高度 textarea + 底部工具条（附件 / git 分支 / 模型 / 发送）+ 预览 + 发送。
     - Enter 发送，Shift+Enter 换行；中文输入法 composing 期间不触发
     - 附件：图片生成缩略图，其他显示文件卡片，可移除
     - 拖拽文件进入高亮
     - 排队（`allowQueue` + `queued`）：生成中也能发送，消息进宿主手里的队列，
       条带展示、可移除、可在暂停时手动接续 —— 见 types/index.ts 的 QueuedMessage
+    - git 分支 / 模型（`gitBranch` / `model`）：宿主算好传进来，库只负责在工具条上展示
   -->
   <div
     class="acu-input-wrap"
@@ -108,7 +109,33 @@
       :images="previewImages"
     />
 
+    <!--
+      文字区：只剩 textarea 一行。附件 / git 分支 / 模型 / 发送都搬到下面的工具条 ——
+      WorkBuddy 式布局：上面是干净的输入区，下面一行常驻操作，文字长高时按钮不会被顶走。
+    -->
     <div class="acu-input-row">
+      <textarea
+        ref="textareaRef"
+        v-model="draft"
+        class="acu-input-textarea"
+        :placeholder="placeholder"
+        :rows="1"
+        :disabled="disabled"
+        @keydown="onKeydown"
+        @input="autoResize"
+        @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
+        @paste="onPaste"
+      ></textarea>
+    </div>
+
+    <!--
+      工具条：底部常驻操作行（WorkBuddy 同款布局）。
+      左组：附件（+）、git 分支；右组：上下文占用圆环、模型、发送 / 停止。
+      git 分支与模型是**纯展示片**（宿主算好传进来，库不碰 git、也不认模型列表），
+      所以是 span 不是 button —— 不给它们假装能点的 hover 与光标。
+    -->
+    <div class="acu-input-toolbar">
       <button
         v-if="uploadEnabled"
         type="button"
@@ -130,19 +157,19 @@
         @change="onFileChange"
       />
 
-      <textarea
-        ref="textareaRef"
-        v-model="draft"
-        class="acu-input-textarea"
-        :placeholder="placeholder"
-        :rows="1"
-        :disabled="disabled"
-        @keydown="onKeydown"
-        @input="autoResize"
-        @compositionstart="onCompositionStart"
-        @compositionend="onCompositionEnd"
-        @paste="onPaste"
-      ></textarea>
+      <span v-if="gitBranch" class="acu-input-chip" :title="gitBranch">
+        <span class="acu-input-chip-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="3" x2="6" y2="15" />
+            <circle cx="18" cy="6" r="3" />
+            <circle cx="6" cy="18" r="3" />
+            <path d="M18 9a9 9 0 0 1-9 9" />
+          </svg>
+        </span>
+        <span class="acu-input-chip-label">{{ gitBranch }}</span>
+      </span>
+
+      <div class="acu-input-toolbar-spacer" />
 
       <!--
         上下文占用：发送按钮左侧的圆环，深色弧长表示占比；**hover 圆环**才出气泡。
@@ -171,6 +198,15 @@
           />
         </svg>
       </div>
+
+      <span v-if="model" class="acu-input-chip" :title="model">
+        <span class="acu-input-chip-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z" />
+          </svg>
+        </span>
+        <span class="acu-input-chip-label">{{ model }}</span>
+      </span>
 
       <!--
         右侧按钮组。
@@ -273,6 +309,21 @@ const props = withDefaults(
     uploadConfig?: Partial<UploadConfig>
     maxLength?: number
     /**
+     * 当前 git 分支名（展示用，如 `'master'` / `'feature/x'`）。
+     *
+     * 不传（或空串）则工具条上不渲染这一片。库不自己读 git —— 分支在宿主手里
+     * （当前项目切到哪、是不是 detached），组件库猜一个出来只会显示错的信息。
+     * @default ''
+     */
+    gitBranch?: string
+    /**
+     * 当前模型名（展示用，如 `'Step-5-Preview'`）。
+     *
+     * 同 `gitBranch`：宿主算好传进来，库只排版。不传则不渲染。
+     * @default ''
+     */
+    model?: string
+    /**
      * 上下文占用指示。不传则整条不渲染（且不占位，见模板里的 v-if）。
      *
      * 形状与语义见 `types/index.ts` 的 `ContextUsage` —— 一句话：**宿主算好
@@ -292,7 +343,9 @@ const props = withDefaults(
     queueLabels: () => ({}),
     uploadConfig: () => ({}),
     maxLength: 4000,
-    contextUsage: null
+    contextUsage: null,
+    gitBranch: '',
+    model: ''
   }
 )
 
@@ -526,17 +579,23 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+/*
+  卡片化输入框（WorkBuddy 式）：大圆角 + 双层内容 ——
+  上面是文字区，下面是常驻工具条（附件 / git 分支 / 上下文占用 / 模型 / 发送）。
+  圆角取阶梯最大档 xl(20px)、内边距 space-3：比原来的 18px/8px 更松弛，
+  工具条也才有呼吸的空间。底色用 --acu-card-bg 而不是 --acu-bg ——
+  深色下卡片比页面亮一档（#1e1e25 vs #17171c）才「浮」得起来，
+  用页面同色会只剩一圈描边，读作「凹陷」而不是「一张卡」。
+*/
 .acu-input-wrap {
   position: relative;
   max-width: var(--acu-max-width);
   width: 100%;
   margin: 0 auto;
-  // 白底 + 描边 + 一层极淡阴影，而不是 --acu-surface 灰底：灰底在白页面上
-  // 是一块「填色」，白底描边才像一张轻轻浮起来的卡片，视觉重量低得多。
-  background: var(--acu-bg);
-  border: 1px solid var(--acu-border);
-  border-radius: var(--acu-radius-lg);
-  padding: var(--acu-space-2);
+  background: var(--acu-card-bg);
+  border: 1px solid var(--acu-card-border);
+  border-radius: var(--acu-radius-xl);
+  padding: var(--acu-space-3);
   box-shadow: var(--acu-shadow-sm);
   transition: border-color var(--acu-duration) var(--acu-easing),
     box-shadow var(--acu-duration) var(--acu-easing),
@@ -897,16 +956,10 @@ defineExpose({
   }
 }
 
-.acu-input-row {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--acu-space-2);
-  padding: var(--acu-space-1) var(--acu-space-1) 0;
-}
-
 .acu-input-icon-btn {
   flex-shrink: 0;
-  // 34px 圆形：容器圆角是 18px，里面再放 8px 圆角的方块会形成两套圆角语言，
+  // 34px 圆形：与发送按钮同为全圆，工具条里两颗圆一左一右收尾，
+  // 中间夹方角元素会形成两套圆角语言
   // 一眼看着「没对齐」。全圆是能和任意容器圆角和平共处的那一档。
   width: 34px;
   height: 34px;
@@ -932,6 +985,66 @@ defineExpose({
 
 .acu-input-file {
   display: none;
+}
+
+/* 文字区：现在只有 textarea，按钮们都搬去了工具条 */
+.acu-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--acu-space-2);
+}
+
+/*
+  工具条：底部常驻操作行（WorkBuddy 同款）。
+  与文字区之间只隔 4px —— 它们同属一张卡，不是两个组件；
+  左组（附件 / git 分支）与右组（占用圆环 / 模型 / 发送）靠中间的弹性空隙分开。
+*/
+.acu-input-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--acu-space-2);
+  margin-top: var(--acu-space-1);
+  // 左右各收 2px：工具条里的 34px 圆按钮若与卡片 padding(12px) 严丝合缝，
+  // 圆形会视觉上「顶到角上」，收 2px 让圆与卡边之间剩 10px，呼吸感对
+  padding: 0 var(--acu-space-0-5);
+}
+
+.acu-input-toolbar-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+  展示片（git 分支 / 模型）：纯排版，不是按钮 ——
+  没有 hover 变色、没有 pointer 光标，免得宿主没接点击时「看着能点、点了没反应」。
+  超长分支名 / 模型名走 ellipsis，完整内容在 title 里。
+*/
+.acu-input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--acu-space-1-5);
+  min-width: 0;
+  max-width: 46%;
+  height: 24px;
+  padding: 0 var(--acu-space-2);
+  border-radius: var(--acu-radius-full);
+  color: var(--acu-text-secondary);
+  font-size: var(--acu-font-size-xs);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.acu-input-chip-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--acu-text-muted);
+}
+
+.acu-input-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .acu-input-textarea {

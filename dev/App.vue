@@ -192,6 +192,8 @@
           :queued="queuedMessages"
           :queue-paused="cfg.queuePaused"
           :upload-config="uploadConfig"
+          :git-branch="cfg.gitBranch.trim() || undefined"
+          :model="cfg.model.trim() || undefined"
           @send="onSend"
           @stop="onStop"
           @unqueue="onUnqueue"
@@ -731,6 +733,29 @@ const SCHEMA: ConfigGroup[] = [
       },
       { key: 'debug', label: '调试模式', type: 'bool', hint: '右下角显示「查看数据结构」' }
     ]
+  },
+  {
+    title: '输入框工具条',
+    prop: 'ChatInput · gitBranch / model',
+    desc: '底部工具条上的两片纯展示（WorkBuddy 式布局）：git 分支与模型名。留空则不渲染对应那片。',
+    fields: [
+      {
+        key: 'gitBranch',
+        label: 'git 分支',
+        field: 'gitBranch',
+        type: 'text',
+        placeholder: '如 main',
+        hint: '工具条左侧展示，不传不渲染'
+      },
+      {
+        key: 'model',
+        label: '模型名',
+        field: 'model',
+        type: 'text',
+        placeholder: '如 Step-5-Preview',
+        hint: '工具条右侧展示，不传不渲染'
+      }
+    ]
   }
 ]
 
@@ -827,7 +852,11 @@ const DEFAULTS = {
   // 运行状态
   forceDisabled: false,
   forceGenerating: false,
-  debug: false
+  debug: false,
+
+  // 输入框工具条（WorkBuddy 式布局的两片展示）
+  gitBranch: 'main',
+  model: 'Step-5-Preview'
 }
 
 const cfg = reactive({ ...DEFAULTS })
@@ -2072,7 +2101,10 @@ body {
 .demo-main .demo-composer {
   grid-area: composer;
   padding: var(--acu-space-3) var(--acu-space-4) var(--acu-space-4);
-  background: linear-gradient(to top, var(--acu-bg) 70%, transparent);
+  /* 纯色而不再是 `linear-gradient(to top, var(--acu-bg) 70%, transparent)`：
+     演示页里这条渐变同样是 no-op（.demo-main 自带同色 acu-root 底），
+     而宿主把输入框拆出去单独摆时它会露出宿主面板底色、多一条异色带 —— 与库同口径删掉 */
+  background: var(--acu-bg);
 }
 
 /* —— 窄屏分页栏（仅分页模式渲染）—— */

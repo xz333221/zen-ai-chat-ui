@@ -68,6 +68,8 @@
         :queue-labels="queueLabels"
         :upload-config="uploadConfig"
         :context-usage="contextUsage"
+        :git-branch="gitBranch"
+        :model="model"
         @send="onSend"
         @stop="$emit('stop')"
         @unqueue="(id) => $emit('unqueue', id)"
@@ -212,6 +214,13 @@ const props = withDefaults(
      */
     contextUsage?: ContextUsage | null
     /**
+     * 当前 git 分支名，透传给内置的 ChatInput（工具条上的展示片）。
+     * 同 `contextUsage`：拆出输入框时请直接给那个 ChatInput 传。
+     */
+    gitBranch?: string
+    /** 当前模型名，透传给内置的 ChatInput（工具条上的展示片）。 */
+    model?: string
+    /**
      * 追问建议。
      * - 传数组：静态追问，每条 assistant 完成都展示同样的卡片
      * - 传对象：可启用 provider 动态生成、title、mode 等高级配置
@@ -292,6 +301,8 @@ const props = withDefaults(
     questionLabels: undefined,
     uploadConfig: () => ({}),
     contextUsage: null,
+    gitBranch: '',
+    model: '',
     followup: undefined,
     toolCallsConfig: undefined,
     planConfig: undefined,
@@ -384,7 +395,12 @@ defineExpose({
   // 侧边条在窄容器里撑出车道时（--acu-rail-lane，由 MessageList 实测下发），
   // 输入框与消息列一起让位 —— 两者的左边缘保持对齐
   padding-left: calc(var(--acu-space-4) + var(--acu-rail-lane, 0px));
-  background: linear-gradient(to top, var(--acu-bg) 70%, transparent);
+  // 纯色，不再用 `linear-gradient(to top, var(--acu-bg) 70%, transparent)`：
+  // 库内这层渐变是**视觉 no-op** —— footer 是 .acu-chat（同色底）的 flex 子元素，
+  // 透明端露出的还是 --acu-bg 本身；而宿主把输入框拆出去单独摆时（showInput=false），
+  // 它变成 grid 兄弟节点，透明端会露出宿主面板的底色 —— 输入框上方凭空多一条
+  // 异色带（2026-10-13 消费方实测：深色下是一条灰蓝色渐变带）。两条路都不讨好，删掉。
+  background: var(--acu-bg);
 }
 
 // 提问面板：与消息列、输入框同宽同列

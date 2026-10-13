@@ -511,7 +511,10 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 .composer {
   flex-shrink: 0;
   padding: var(--acu-space-3) var(--acu-space-4) var(--acu-space-4);
-  background: linear-gradient(to top, var(--acu-bg) 70%, transparent);
+  /* 纯色。别用 `linear-gradient(to top, var(--acu-bg) 70%, transparent)`：
+     库内那条渐变是 no-op（footer 与 .acu-chat 同色），而宿主把输入框拆出来后
+     它是 grid 兄弟节点，透明端会露出宿主自己的面板底色 —— 输入框上方多一条异色带 */
+  background: var(--acu-bg);
 }
 ```
 
@@ -532,6 +535,29 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 跟输入框一起「搬家」的还有这几个 prop / 事件：`placeholder`、`disabled`、`generating`、`send`、`stop`——拆出去后它们都归 `ChatInput`，`ChatContainer` 那边不用再传（`showInput=false` 时它也不会再读）。另外提问面板（`question`）仍留在 `ChatContainer` 里，也就是永远在常驻输入框的上方。
 
 演示页就是这么做的：`main` 宽度减去列表宽度不足 560px 时自动分页（约等于视口 852px），用 `ResizeObserver` 量容器，所以缩放、改 padding 都会自动跟上；输入框始终在卡片最下方，列表页也在。
+
+### 输入框：卡片与工具条（`gitBranch` / `model`）
+
+输入框是一张大圆角卡片（WorkBuddy 式布局）：**上面是文字区，下面是常驻工具条**。文字长高时按钮不会被顶走，工具条里的内容也终于有地方放。
+
+```vue
+<ChatInput
+  :generating="busy"
+  git-branch="main"              <!-- 工具条左组：git 图标 + 分支名（纯展示） -->
+  model="Step-5-Preview"         <!-- 工具条右组：模型名（纯展示） -->
+  @send="onSend"
+  @stop="onStop"
+/>
+```
+
+| Prop        | 类型     | 默认 | 说明 |
+| ----------- | -------- | ---- | ---- |
+| `gitBranch` | `string` | `''` | 当前 git 分支名。不传（或空串）则不渲染那一片 |
+| `model`     | `string` | `''` | 当前模型名。不传则不渲染那一片 |
+
+两个都是**纯展示片**：库不读 git、也不认模型列表，宿主算好传进来，库只负责排版（超长省略 + `title` 全文）。它们因此不是按钮 —— 没有 hover 变色和指针光标，宿主没接点击时不会「看着能点、点了没反应」。想做成下拉选择器，在宿主侧覆盖即可。
+
+工具条的完整形态：`附件` · `git 分支` …… `上下文占用圆环` · `模型` · `发送 / 停止`（生成中且开了 `allowQueue` 时停止左侧多一颗「加入队列」）。
 
 ## 组件 API
 
@@ -563,6 +589,8 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 | `questionAnswers`   | `string[]`                 | `[]`       | 提问面板的已作答内容：非空时面板转只读「已回答」留档 |
 | `questionLabels`    | `Partial<AskUserLabels>`   | -          | 提问面板文案覆盖（走 i18n 时用） |
 | `uploadConfig`      | `Partial<UploadConfig>`    | `{}`       | 附件上传配置          |
+| `gitBranch`         | `string`                   | `''`       | 输入框工具条展示的 git 分支名（透传给内置 `ChatInput`；宿主自己摆输入框时直接给那个 `ChatInput` 传） |
+| `model`             | `string`                   | `''`       | 输入框工具条展示的模型名（同上） |
 | `followup`          | `FollowupInput`            | -          | 追问建议（详见下方）  |
 | `toolCallsConfig`   | `ToolCallsConfig`          | -          | 工具调用展示配置（详见下方） |
 | `planConfig`        | `PlanConfig`               | -          | 计划清单展示配置（详见下方） |
