@@ -157,7 +157,7 @@
         @change="onFileChange"
       />
 
-      <span v-if="gitBranch" class="acu-input-chip" :title="gitBranch">
+      <span v-if="gitBranch" class="acu-input-chip is-git" :title="gitBranch">
         <span class="acu-input-chip-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="6" y1="3" x2="6" y2="15" />
@@ -199,7 +199,7 @@
         </svg>
       </div>
 
-      <span v-if="model" class="acu-input-chip" :title="model">
+      <span v-if="model" class="acu-input-chip is-model" :title="model">
         <span class="acu-input-chip-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z" />
@@ -1035,6 +1035,22 @@ defineExpose({
   user-select: none;
 }
 
+/*
+  收缩优先级：**分支片不缩、模型片缩**。
+  两者都参与收缩时，窄面板下按基准宽度比例分 —— 模型名（长）分到一大截、
+  分支名（本来就短）被压到只剩一两个字（实测 287px 面板里 "main" 被压成 "n"）。
+  分支名短且信息量高（这是"我在哪个分支上聊"），让它保住自然宽度；
+  挤不下的部分由模型名自己 ellipsis —— 它不设 max-width，能占多少占多少
+  （宽面板里完整显示，窄面板里自动让位），全文仍在 title 里兜底。
+*/
+.acu-input-chip.is-git {
+  flex-shrink: 0;
+}
+.acu-input-chip.is-model {
+  flex-shrink: 1;
+  max-width: none;
+}
+
 .acu-input-chip-icon {
   flex-shrink: 0;
   display: inline-flex;
@@ -1042,6 +1058,7 @@ defineExpose({
 }
 
 .acu-input-chip-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
