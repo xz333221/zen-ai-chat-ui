@@ -130,11 +130,17 @@
       :style="{ '--acu-max-width': demoMaxWidth }"
     >
       <!-- 会话列表：宽屏是左侧栏；窄屏分页时与对话区二选一，占满中间区 -->
-      <aside v-if="showList" class="demo-conv" :class="{ 'demo-conv--page': narrowSplit }">
+      <aside
+        v-if="showList"
+        class="demo-conv"
+        :class="{ 'demo-conv--page': narrowSplit, 'is-collapsed': convCollapsed && !narrowSplit }"
+      >
         <ConversationList
           :items="convItems"
           :active-id="demoActiveId"
           :compact="cfg.convCompact"
+          :collapsible="cfg.convCollapsible && !narrowSplit"
+          v-model:collapsed="convCollapsed"
           @select="onConvSelect"
           @new="onConvNew"
           @rename="onConvRename"
@@ -698,10 +704,11 @@ const SCHEMA: ConfigGroup[] = [
   {
     title: '会话列表',
     prop: 'ConversationList',
-    desc: '独立的会话列表组件：搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式。左侧 260px 容器即窄面板预览；窗口再窄到放不下对话列时，列表与对话会自动分成两页。',
+    desc: '独立的会话列表组件：搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式、可选折叠（收起后只剩一条收纳条）。左侧 260px 容器即窄面板预览；窗口再窄到放不下对话列时，列表与对话会自动分成两页。',
     fields: [
       { key: 'convShow', label: '显示列表', type: 'bool', hint: '和 ChatContainer 并排' },
       { key: 'convCompact', label: '紧凑模式', field: 'compact', type: 'bool', hint: '窄面板 / 侧栏用' },
+      { key: 'convCollapsible', label: '可折叠', type: 'bool', hint: '工具条多一枚收起按钮；收起后列宽收到 40px，只剩收纳条' },
       { key: 'convGenerating', label: '含生成中徽标', type: 'bool', field: 'generatingText', hint: '列表首项' }
     ]
   },
@@ -843,6 +850,7 @@ const DEFAULTS = {
   // 会话列表
   convShow: true,
   convCompact: false,
+  convCollapsible: false,
   convGenerating: false,
 
   // 排队（生成中继续发）
@@ -1042,6 +1050,8 @@ const mainEl = ref<HTMLElement | null>(null)
 const mainWidth = ref(0)
 /** 分页模式下当前在哪一页 */
 const mobilePane = ref<'list' | 'chat'>('list')
+/** 会话列表折叠态（v-model:collapsed；宿主自己把列宽收成 40px） */
+const convCollapsed = ref(false)
 let mainObserver: ResizeObserver | null = null
 
 onMounted(() => {
@@ -2164,6 +2174,13 @@ body {
 .demo-conv--page {
   width: 100%;
   border-right: none;
+}
+
+/* 折叠态：列宽收到收纳条宽度。宿主自己收列宽 —— 库收不动宿主的 grid/flex，
+   .acu-conv 只负责把收纳条画满这一列（padding 也要跟着收，否则 40px 里只剩 16px）。 */
+.demo-conv.is-collapsed {
+  width: 40px;
+  padding: 14px 6px;
 }
 
 /* 列表出现时让对话容器让出宽度（ChatContainer 根节点是 .acu-chat） */

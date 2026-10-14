@@ -523,6 +523,10 @@ export interface ConversationListLabels {
   delete: string
   /** 标题为空时的兜底文案 */
   untitled: string
+  /** 收起按钮 title / aria-label（collapsible 时用） */
+  collapse: string
+  /** 展开按钮 title / aria-label，也是收纳条上的竖排文字 */
+  expand: string
 }
 
 /**

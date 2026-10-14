@@ -8,7 +8,7 @@
 - **停止生成**：生成中发送按钮自动变停止按钮，点击抛 `stop` 事件，由业务侧中断请求
 - **生成中排队发送**：开 `allowQueue` 后生成中也能发 —— 消息先落进宿主的队列（输入框里的条带实时展示、可逐条移除），本轮结束由宿主依次发出；流被中止 / 发送失败时队列暂停，队首出现「立即发送」
 - **向用户提问**：内置提问面板（单选点击即提交 / 多选勾选后提交 / 可选自由输入），适合 agent 中途停下来向用户要一个选择
-- **会话列表**：独立的 `ConversationList`（搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式），和 `ChatContainer` 并排就是完整的对话应用骨架；窄到放不下两列时，演示页会自动切成「列表页 ↔ 对话页」两页，输入框则用 `showInput=false` 拆出来常驻在卡片最下方，**列表页也有一条**（VSCode 那种感觉）
+- **会话列表**：独立的 `ConversationList`（搜索 / 新建 / 行内重命名 / 删除事件 + 生成中徽标、来源角标、紧凑模式、可选折叠 —— 收起后只剩一条收纳条，列宽由宿主收），和 `ChatContainer` 并排就是完整的对话应用骨架；窄到放不下两列时，演示页会自动切成「列表页 ↔ 对话页」两页，输入框则用 `showInput=false` 拆出来常驻在卡片最下方，**列表页也有一条**（VSCode 那种感觉）
 - **输入框可拆**：`ChatContainer` 传 `showInput=false` 就不渲染内置输入框，改由宿主用导出的 `ChatInput` 自己摆位；整个应用只挂一个实例，切页时草稿与待发附件都还在
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）。标题右侧带**思考段耗时**，流式实时跳、折叠也看得见
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
@@ -427,26 +427,49 @@ const conversations = ref<ConversationItem[]>([
 - **行内重命名**：点铅笔或双击条目进入编辑，Enter / 失焦提交、Esc 取消；标题没变或为空则不抛事件
 - **时间等文案由消费方格式化**：库不做相对时间与 i18n，`meta` / `generatingText` / `badge` 都是现成字符串（要 i18n 就传 `labels`）
 - **紧凑模式** `compact`：更小行高与字号，适合窄面板 / 侧栏
+- **可选折叠** `collapsible`：工具条右端多一枚收起按钮，收起后整列只剩一条收纳条（图标 + 竖排文案，整条可点）。**列宽由宿主自己收** —— 库不知道宿主是 flex 还是 grid 在排这两列，推荐收到 36–44px（`padding` 也要跟着收，否则 40px 里只剩十几px）。状态用 `v-model:collapsed` 受控；不绑也能用（组件自己记）
 - 选中项用主色软底 + 左侧 3px 竖条；操作按钮悬停或聚焦时才显形；`activeId` 变化时当前项自动滚进视野
 
-| Prop         | 类型                          | 默认值  | 说明 |
-| ------------ | ----------------------------- | ------- | ---- |
-| `items`      | `ConversationItem[]`          | -       | 会话列表（必填） |
-| `activeId`   | `string \| null`              | `null`  | 当前选中的会话 id |
-| `loading`    | `boolean`                     | `false` | 加载中（列表为空时显示 loading 文案） |
-| `showSearch` | `boolean`                     | `true`  | 是否展示搜索框 |
-| `showNew`    | `boolean`                     | `true`  | 是否展示新建按钮 |
-| `compact`    | `boolean`                     | `false` | 紧凑模式（窄面板 / 侧栏） |
-| `labels`     | `Partial<ConversationListLabels>` | -   | 文案覆盖（走 i18n 时用） |
+| Prop          | 类型                          | 默认值  | 说明 |
+| ------------- | ----------------------------- | ------- | ---- |
+| `items`       | `ConversationItem[]`          | -       | 会话列表（必填） |
+| `activeId`    | `string \| null`              | `null`  | 当前选中的会话 id |
+| `loading`     | `boolean`                     | `false` | 加载中（列表为空时显示 loading 文案） |
+| `showSearch`  | `boolean`                     | `true`  | 是否展示搜索框 |
+| `showNew`     | `boolean`                     | `true`  | 是否展示新建按钮 |
+| `compact`     | `boolean`                     | `false` | 紧凑模式（窄面板 / 侧栏） |
+| `collapsible` | `boolean`                     | `false` | 是否可折叠（工具条右端多一枚收起按钮） |
+| `collapsed`   | `boolean`                     | -       | 折叠态；配 `v-model:collapsed` 用，不传则组件自己记 |
+| `labels`      | `Partial<ConversationListLabels>` | -   | 文案覆盖（走 i18n 时用） |
 
-| Event    | Payload                                | 说明 |
-| -------- | -------------------------------------- | ---- |
-| `select` | `(id: string, item: ConversationItem)` | 选中某条会话 |
-| `new`    | -                                      | 点击新建 |
-| `rename` | `(id: string, title: string)`          | 提交重命名（仅新标题非空且变化时触发） |
-| `delete` | `(id: string, item: ConversationItem)` | 请求删除（确认弹窗由消费方负责） |
+| Event               | Payload                                | 说明 |
+| ------------------- | -------------------------------------- | ---- |
+| `select`            | `(id: string, item: ConversationItem)` | 选中某条会话 |
+| `new`               | -                                      | 点击新建 |
+| `rename`            | `(id: string, title: string)`          | 提交重命名（仅新标题非空且变化时触发） |
+| `delete`            | `(id: string, item: ConversationItem)` | 请求删除（确认弹窗由消费方负责） |
+| `update:collapsed`  | `(value: boolean)`                     | 折叠态变化（收起按钮 / 收纳条都会抛） |
 
-> 跑 `npm run dev` 后，配置面板里「会话列表」一组可以开关列表、切紧凑模式、给首项加"生成中"徽标；点选 / 新建 / 重命名 / 删除都会即时作用在左侧那份演示数据上。
+折叠的接线（宿主侧只有"收列宽"这一件事）：
+
+```vue
+<aside :style="{ width: collapsed ? '40px' : '260px' }">
+  <ConversationList
+    :items="conversations"
+    collapsible
+    v-model:collapsed="collapsed"
+    @select="onSelect"
+  />
+</aside>
+```
+
+```css
+/* 列宽收了，内边距也要跟着收，否则 40px 里只剩十几 px 给收纳条 */
+aside { padding: 12px; transition: width var(--acu-duration) var(--acu-easing); }
+aside:has(> .acu-conv.is-collapsed) { padding: 12px 4px; }
+```
+
+> 跑 `npm run dev` 后，配置面板里「会话列表」一组可以开关列表、切紧凑模式、打开折叠、给首项加"生成中"徽标；点选 / 新建 / 重命名 / 删除都会即时作用在左侧那份演示数据上。
 
 ### 窄屏怎么办：分两页，而不是硬挤
 

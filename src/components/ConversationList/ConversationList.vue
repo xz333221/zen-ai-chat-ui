@@ -4,24 +4,94 @@
     - 纯展示组件：数据与状态由消费方持有，交互只抛事件（删除的确认弹窗由消费方做）
     - 内置：搜索过滤、新建按钮、行内重命名（Enter/blur 提交、Esc 取消）、hover 显示操作
     - 条目上的生成中徽标 / 角标 / 次级文案都从 item 字段来，库不做时间格式化与 i18n
+    - 可选折叠（collapsible）：收起后只剩一条收纳条，**宽度由宿主给**（列宽压到 36–44px），
+      组件只负责把收纳条画满那一列 —— 库不知道宿主是 flex 还是 grid 在排这两列
   -->
-  <div class="acu-conv" :class="{ 'is-compact': compact }">
-    <div v-if="showNew || showSearch" class="acu-conv-toolbar">
-      <button v-if="showNew" type="button" class="acu-conv-new" @click="emit('new')">
-        <svg
-          viewBox="0 0 24 24"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+  <div
+    class="acu-conv"
+    :class="{ 'is-compact': compact, 'is-collapsed': collapsible && isCollapsed }"
+  >
+    <!--
+      收纳条：整条都能点，展开回去。
+      折叠不是"把宽度压成 0"—— 那样就再没有能点回来的地方了（宿主把列宽留成 36–44px）。
+    -->
+    <button
+      v-if="collapsible && isCollapsed"
+      type="button"
+      class="acu-conv-rail"
+      :title="label.expand"
+      :aria-label="label.expand"
+      :aria-expanded="false"
+      @click="setCollapsed(false)"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="15"
+        height="15"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <line x1="9" y1="4" x2="9" y2="20" />
+        <polyline points="13.5 9.5 16 12 13.5 14.5" />
+      </svg>
+      <span class="acu-conv-rail-text">{{ label.expand }}</span>
+    </button>
+
+    <!--
+      折叠时下面这些用 v-show 而不是 v-if：搜索词、滚动位置、正在编辑的那条都还留着，
+      展开回来接着用（与"窄屏分页时 ChatContainer 用 v-show"同一条理由）。
+    -->
+    <div v-show="!isCollapsed" class="acu-conv-toolbar">
+      <div class="acu-conv-toolbar-row">
+        <button v-if="showNew" type="button" class="acu-conv-new" @click="emit('new')">
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span>{{ label.newConversation }}</span>
+        </button>
+
+        <!-- 收起按钮：摆在新建按钮这一行的右端（列表自己的工具条里），
+             这样展开/收起两枚按钮都长在"被折叠的那一列"上，宿主不用再往头部塞东西 -->
+        <button
+          v-if="collapsible"
+          type="button"
+          class="acu-conv-collapse"
+          :title="label.collapse"
+          :aria-label="label.collapse"
+          :aria-expanded="true"
+          @click="setCollapsed(true)"
         >
-          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-        <span>{{ label.newConversation }}</span>
-      </button>
+          <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <line x1="9" y1="4" x2="9" y2="20" />
+            <polyline points="16 9.5 13.5 12 16 14.5" />
+          </svg>
+        </button>
+      </div>
 
       <div v-if="showSearch" class="acu-conv-search">
         <svg
@@ -47,7 +117,7 @@
       </div>
     </div>
 
-    <ul ref="listRef" class="acu-conv-list">
+    <ul v-show="!isCollapsed" ref="listRef" class="acu-conv-list">
       <li
         v-for="item in matched"
         :key="item.id"
@@ -136,7 +206,7 @@
       </li>
     </ul>
 
-    <p v-if="emptyText" class="acu-conv-empty">
+    <p v-if="emptyText && !isCollapsed" class="acu-conv-empty">
       <span>{{ emptyText }}</span>
       <span v-if="showEmptyHint" class="acu-conv-empty-hint">{{ label.emptyHint }}</span>
     </p>
@@ -161,6 +231,16 @@ const props = withDefaults(
     showNew?: boolean
     /** 紧凑模式：更小的行高与字号，适合窄面板 */
     compact?: boolean
+    /**
+     * 是否可折叠：工具条右端多一枚收起按钮，收起后整列只剩一条收纳条。
+     * 默认关闭 —— 折叠是宿主的版面决策，且**列宽要宿主自己收**（库收不动宿主的 grid/flex）。
+     */
+    collapsible?: boolean
+    /**
+     * 折叠态（配合 `v-model:collapsed` 用）。
+     * 不传时组件自己记状态（非受控），传了就以宿主的为准（受控）。
+     */
+    collapsed?: boolean
     /** 文案覆盖（宿主项目要走 i18n 时传自己的翻译） */
     labels?: Partial<ConversationListLabels>
   }>(),
@@ -170,6 +250,10 @@ const props = withDefaults(
     showSearch: true,
     showNew: true,
     compact: false,
+    collapsible: false,
+    // 显式给 undefined：这样"没传"与"传了 false"能分开，
+    // 非受控模式才成立（Boolean 类型不写 default 时 Vue 会把缺失值铸成 false）
+    collapsed: undefined,
     labels: undefined
   }
 )
@@ -183,7 +267,19 @@ const emit = defineEmits<{
   (e: 'rename', id: string, title: string): void
   /** 请求删除（确认弹窗由消费方负责） */
   (e: 'delete', id: string, item: ConversationItem): void
+  /** 折叠态变化（收起按钮 / 收纳条都会抛） */
+  (e: 'update:collapsed', value: boolean): void
 }>()
+
+// —— 折叠（受控 / 非受控两用）——
+const innerCollapsed = ref(false)
+const isCollapsed = computed(() => props.collapsed ?? innerCollapsed.value)
+
+function setCollapsed(next: boolean) {
+  if (isCollapsed.value === next) return
+  innerCollapsed.value = next
+  emit('update:collapsed', next)
+}
 
 const DEFAULT_LABELS: ConversationListLabels = {
   newConversation: '新建会话',
@@ -194,7 +290,9 @@ const DEFAULT_LABELS: ConversationListLabels = {
   loading: '加载会话中...',
   rename: '重命名',
   delete: '删除',
-  untitled: '无标题'
+  untitled: '无标题',
+  collapse: '收起会话列表',
+  expand: '展开会话列表'
 }
 
 const label = computed<ConversationListLabels>(() => ({ ...DEFAULT_LABELS, ...props.labels }))
@@ -283,11 +381,19 @@ const showEmptyHint = computed(() => !props.items.length && !props.loading)
   flex-shrink: 0;
 }
 
+/* 新建 + 收起同一行：收起按钮钉在右端，不跟着新建按钮一起伸缩 */
+.acu-conv-toolbar-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--acu-space-1-5);
+}
+
 .acu-conv-new {
   @include acu-btn-base;
   @include acu-focus-ring;
   justify-content: flex-start;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: var(--acu-space-2) var(--acu-space-2-5);
   background: var(--acu-primary-soft);
   color: var(--acu-primary);
@@ -297,6 +403,61 @@ const showEmptyHint = computed(() => !props.items.length && !props.loading)
   &:hover:not(:disabled) {
     background: var(--acu-primary-soft-hover);
   }
+}
+
+/* 收起按钮：与搜索框同高同宽的方形图标按钮 */
+.acu-conv-collapse {
+  @include acu-btn-base;
+  @include acu-focus-ring;
+  flex-shrink: 0;
+  width: 32px;
+  padding: 0;
+  border-color: var(--acu-border);
+  background: var(--acu-surface);
+  color: var(--acu-text-muted);
+
+  &:hover:not(:disabled) {
+    background: var(--acu-surface-hover);
+    color: var(--acu-text);
+  }
+}
+
+/* 收纳条：折叠后整列只剩它，宽度由宿主给（36–44px），这里画满那一列 */
+.acu-conv-rail {
+  @include acu-btn-base;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: var(--acu-space-2);
+  min-height: 0;
+  width: 100%;
+  padding: var(--acu-space-2-5) 0;
+  border: none;
+  background: transparent;
+  color: var(--acu-text-muted);
+
+  &:hover:not(:disabled) {
+    background: var(--acu-surface-hover);
+    color: var(--acu-text);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--acu-primary);
+  }
+}
+
+/* writing-mode 竖排：文字横着放不进 36px。
+   overflow:hidden 是给长文案（英文 "Expand list" 一类）兜底 —— 栏太矮时宁可截断，
+   也不要把收纳条撑出列外。 */
+.acu-conv-rail-text {
+  writing-mode: vertical-rl;
+  letter-spacing: 1px;
+  font-size: var(--acu-font-size-xs);
+  color: var(--acu-text-muted);
+  user-select: none;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .acu-conv-search {
@@ -521,6 +682,10 @@ const showEmptyHint = computed(() => !props.items.length && !props.loading)
   .acu-conv-new {
     padding: var(--acu-space-1-5) var(--acu-space-2);
     font-size: var(--acu-font-size-xs);
+  }
+
+  .acu-conv-collapse {
+    width: 28px;
   }
 }
 </style>
