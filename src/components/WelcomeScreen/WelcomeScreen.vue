@@ -188,29 +188,28 @@ defineEmits<{
 .acu-preset-q {
   display: flex;
   align-items: flex-start;
-  gap: var(--acu-space-2-5);
-  padding: var(--acu-space-4);
+  gap: var(--acu-space-2);
+  // 平铺行，不是卡片（2026-10-25 用户反馈：「这是组件库内置的提示词样式吗？
+  // 感觉有点丑，少点padding」）。这一块演进过三版：
+  //   ① 灰底填色 —— 近白页面上读成一块块「被禁用的表单域」；
+  //   ② 白底 + 1px 描边 —— 靠边界立住、视觉重量降一档；
+  //   ③ 现在：平铺行，去底去描边，hover 才铺一层中性底。
+  // 走到 ③ 的原因：②的 16px 内边距是按「独立卡片」配的，九张/五张并排时行内留白
+  // 比内容还显眼、hover 底色是一大块；而卡片本身的边界在密集列表里也不是必需品 ——
+  // 序号 + 标题已经能定界。悬停用 --acu-surface-hover 而不是 --acu-primary-soft
+  // （后者会是一大片紫，是页面里最吵的动作），也不抬升、不投影（位移留给焦点本身）。
+  padding: 6px 10px 6px 0;
   text-align: left;
-  // 白底 + 描边，而不是 --acu-surface 灰底：灰底在近白页面上是一块「填色」，
-  // 九张并排就读成九格被禁用的表单域。卡片靠边界立住、不靠填色，
-  // 视觉重量降一档，也才配得上旁边 26px 的标题
-  background: var(--acu-card-bg);
-  border: 1px solid var(--acu-card-border);
-  border-radius: var(--acu-radius-md);
+  background: transparent;
+  border: 0;
+  border-radius: var(--acu-radius-xs);
   cursor: pointer;
   font-family: inherit;
-  transition: border-color var(--acu-duration) var(--acu-easing),
-    box-shadow var(--acu-duration) var(--acu-easing),
-    transform var(--acu-duration) var(--acu-easing);
+  transition: background-color var(--acu-duration) var(--acu-easing);
   @include acu-focus-ring;
 
-  // 悬停刻意「不变底色」：原来整块刷成 --acu-primary-soft，9 张卡里指到哪张
-  // 就是一大片紫，是页面里最吵的动作。改成「描边加深 + 极淡投影 + 抬 1px」，
-  // 唯一移动的颜色只有右上角那个箭头 —— 克制路数里，位移要留给焦点本身
   &:hover {
-    border-color: var(--acu-card-border-hover);
-    box-shadow: var(--acu-shadow-sm);
-    transform: translateY(-1px);
+    background: var(--acu-surface-hover);
 
     .acu-preset-q-arrow {
       color: var(--acu-primary);
@@ -220,12 +219,6 @@ defineEmits<{
     .acu-preset-q-index {
       color: var(--acu-text-secondary);
     }
-  }
-
-  // 按下回收：hover 抬起 1px，按下落回 0，手感上有「按下去」的闭合
-  &:active {
-    transform: translateY(0);
-    box-shadow: none;
   }
 }
 
@@ -247,7 +240,7 @@ defineEmits<{
 .acu-preset-q-body {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
   flex: 1;
 }
