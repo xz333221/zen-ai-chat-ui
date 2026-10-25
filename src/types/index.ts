@@ -28,8 +28,14 @@ export interface ChatAttachment {
   preview?: string
 }
 
-/** 工具调用状态 */
-export type ToolCallStatus = 'pending' | 'running' | 'done' | 'error'
+/**
+ * 工具调用状态。
+ *
+ * `background` 专指"后台进程已经起来了、还在跑"：它不是 done（进程没结束），
+ * 也不是 running（这一轮的工具调用已经返回了，模型可以继续干活）。
+ * 宿主在后台命令启动成功时把状态设成它，进程退出后再改回 done。
+ */
+export type ToolCallStatus = 'pending' | 'running' | 'done' | 'error' | 'background'
 
 /** 计划步骤状态 */
 export type PlanStepStatus = 'pending' | 'in_progress' | 'completed'

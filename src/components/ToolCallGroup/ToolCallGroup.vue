@@ -29,6 +29,9 @@
         <svg v-else-if="aggregateStatus === 'error'" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
         </svg>
+        <span v-else-if="aggregateStatus === 'background'" class="acu-toolgroup-bgdot" aria-hidden="true">
+          <span class="acu-toolgroup-bgdot-core" />
+        </span>
         <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
@@ -52,6 +55,22 @@
         <polyline points="6 9 12 15 18 9" />
       </svg>
     </button>
+
+    <!--
+      后台任务常驻区。
+      后台命令的价值是"还在跑、还在吐日志"，模型一继续调工具它就不是"最新一个"了，
+      折进组里等于用户再也看不见自己的 dev server 还活着。只钉还在跑的。
+      放在列表**之前**：它代表"现在的状态"，下面那行普通工具只是历史。
+    -->
+    <div v-if="pinnedBackgrounds.length" class="acu-toolgroup-background">
+      <ToolCallBlock
+        v-for="tc in pinnedBackgrounds"
+        :key="tc.id"
+        :tool-call="tc"
+        :plan-config="planConfig"
+        :ask-user-labels="askUserLabels"
+      />
+    </div>
 
     <!-- 调用列表：折叠时只保留最新一个（计划块与问答留档另算，见下） -->
     <div class="acu-toolgroup-list">
@@ -169,6 +188,18 @@ const pinnedAskUsers = computed<ToolCall[]>(() => {
  * 症状就是"折叠只换文案，行一条不少"，而且只在生产包/正式版里出现 —— 踩过一次。
  * 顺带好处：折叠态 DOM 里只有 1 行，长任务（几十次调用）不再挂几十个隐藏节点。
  */
+/**
+ * 折叠态常驻的后台任务。
+ *
+ * 与计划块同一个理由：后台命令的价值是"还在跑、还在吐日志"，一旦模型继续调别的工具，
+ * 它就不是"最新一个"了，折进组里等于用户再也看不见自己的 dev server 还在跑。
+ * 只钉 `status === 'background'` 的 —— 进程结束后它就是个普通历史调用，回组里待着。
+ */
+const pinnedBackgrounds = computed<ToolCall[]>(() => {
+  if (!grouped.value || expanded.value) return []
+  return props.toolCalls.filter((tc) => tc.status === 'background')
+})
+
 const visibleCalls = computed(() => {
   if (!grouped.value || expanded.value) return props.toolCalls
   const last = props.toolCalls[props.toolCalls.length - 1]
@@ -178,26 +209,32 @@ const visibleCalls = computed(() => {
   if (pinned && last.id === pinned.id) return []
   // 同理：最后一个是问答留档 → 交给问答常驻区
   if (readAskUser(last)) return []
+  // 同理：最后一个是还在跑的后台任务 → 交给后台常驻区
+  if (last.status === 'background') return []
   return [last]
 })
 
-/** 聚合状态：running 优先，其次 error，最后 done */
+/** 聚合状态：running 优先，其次 background（还有进程活着），然后 error，最后 done */
 const stats = computed(() => {
   let running = 0
   let error = 0
   let done = 0
+  let background = 0
   for (const tc of props.toolCalls) {
     const s: ToolCallStatus = tc.status || 'pending'
     if (s === 'running') running++
     else if (s === 'error') error++
     else if (s === 'done') done++
+    else if (s === 'background') background++
   }
-  return { total: props.toolCalls.length, running, error, done }
+  return { total: props.toolCalls.length, running, error, done, background }
 })
 
 const aggregateStatus = computed<ToolCallStatus>(() => {
   const s = stats.value
   if (s.running > 0) return 'running'
+  // 后台进程还活着时不能给绿勾 —— 那会让人以为整组都跑完了
+  if (s.background > 0) return 'background'
   if (s.error > 0) return 'error'
   if (s.done > 0) return 'done'
   return 'pending'
@@ -207,6 +244,9 @@ const headerLabel = computed(() => {
   const s = stats.value
   if (s.running > 0) {
     return `正在调用工具 ${s.done}/${s.total}`
+  }
+  if (s.background > 0) {
+    return `后台运行中 · 共 ${s.total} 个工具`
   }
   if (s.error > 0) {
     return `已调用 ${s.total} 个工具 · ${s.error} 个失败`
@@ -265,7 +305,38 @@ const headerLabel = computed(() => {
   &.is-running { color: var(--acu-primary); }
   &.is-done { color: var(--acu-success); }
   &.is-error { color: var(--acu-error); }
+  &.is-background { color: var(--acu-warning); }
   &.is-pending { color: var(--acu-text-muted); }
+}
+
+// 组头的后台脉冲点：与 ToolCallBlock 里那颗保持一致(尺寸小一档,组头更矮)
+.acu-toolgroup-bgdot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+.acu-toolgroup-bgdot-core {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: acu-bg-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes acu-bg-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.78); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acu-toolgroup-bgdot-core { animation: none; }
+}
+
+.acu-toolgroup-background {
+  margin-top: var(--acu-space-1);
 }
 
 .acu-toolgroup-icon {

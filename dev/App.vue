@@ -1551,9 +1551,12 @@ async function runMultiToolCallDemo(msg: ChatMessage) {
     msg.reasoningStatus = 'done'
     await sleep(160)
 
-    const steps: Array<{ name: string; argsPreview: string; result?: string }> = [
+    const steps: Array<{ name: string; argsPreview: string; result?: string; status?: 'background' }> = [
       { name: 'list_files', argsPreview: 'path=./', result: 'src/  vite.config.ts  package.json  index.html' },
       { name: 'read_file', argsPreview: 'path=package.json', result: '{\n  "dependencies": { "tailwindcss": "^4.0.0" }\n}' },
+      // 后台命令：这一轮已经返回，但进程还在跑 —— 卡片保持展开、状态是脉冲点不是绿勾
+      { name: 'run_command', argsPreview: '[后台] npm run dev', status: 'background',
+        result: '$ npm run dev\n(后台运行 · id bg_1 · pid 4242)\nVITE v5.0.0  ready in 421 ms\n➜  Local:   http://localhost:5544/' },
       { name: 'run_command', argsPreview: 'npx tailwindcss -v', result: 'tailwindcss v4.0.0' },
       { name: 'run_command', argsPreview: 'npm ls tailwindcss', result: '└── tailwindcss@4.0.0' },
       { name: 'read_file', argsPreview: 'path=vite.config.ts', result: 'export default defineConfig({ plugins: [vue()] })' },
@@ -1579,7 +1582,7 @@ async function runMultiToolCallDemo(msg: ChatMessage) {
     for (let i = 0; i < steps.length; i++) {
       await sleep(220)
       const tc = msg.toolCalls[i]
-      tc.status = 'done'
+      tc.status = steps[i].status ?? 'done'
       tc.result = steps[i].result
     }
 
@@ -1724,7 +1727,7 @@ function buildAnswer(): string {
     theme="dark"
     @send="onSend"
   />
-</template>
+<\/template>
 
 <script setup lang="ts">
 import { ref } from 'vue'

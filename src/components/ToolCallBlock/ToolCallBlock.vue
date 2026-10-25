@@ -53,6 +53,10 @@
         <svg v-else-if="status === 'error'" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
         </svg>
+        <!-- 后台运行中：脉冲圆点（不是转圈，也不是勾 —— 这一轮已经返回了，只是进程还活着） -->
+        <span v-else-if="status === 'background'" class="acu-toolcall-bgdot" aria-hidden="true">
+          <span class="acu-toolcall-bgdot-core" />
+        </span>
         <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
@@ -94,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { AskUserLabels, PlanConfig, ToolCall, ToolCallStatus } from '@/types'
 import { readPlan } from '@/utils/plan'
 import { readAskUser } from '@/utils/askUser'
@@ -112,9 +116,14 @@ const props = withDefaults(
   { planConfig: undefined, askUserLabels: undefined }
 )
 
-const expanded = ref(false)
-
 const status = computed<ToolCallStatus>(() => props.toolCall.status || 'pending')
+
+// 后台命令默认展开：它的价值全在持续滚动的日志上，折着就等于没显示。
+// 初值之外还要 watch —— 卡片创建时状态是 running，变成 background 是在工具返回之后。
+const expanded = ref(status.value === 'background')
+watch(status, (s) => {
+  if (s === 'background') expanded.value = true
+})
 
 /**
  * 计划步骤：宿主挂了 `plan` 就用，没挂就自己从 arguments 解析。
@@ -233,7 +242,34 @@ function formatArgs(args: string): string {
   &.is-running { color: var(--acu-primary); }
   &.is-done { color: var(--acu-success); }
   &.is-error { color: var(--acu-error); }
+  &.is-background { color: var(--acu-warning); }
   &.is-pending { color: var(--acu-text-muted); }
+}
+
+// 后台运行中的脉冲点：持续呼吸，和 running 的转圈区分开
+.acu-toolcall-bgdot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+.acu-toolcall-bgdot-core {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: acu-bg-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes acu-bg-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.78); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acu-toolcall-bgdot-core { animation: none; }
 }
 
 .acu-toolcall-icon {
