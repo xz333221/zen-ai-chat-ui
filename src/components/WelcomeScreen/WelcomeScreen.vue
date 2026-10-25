@@ -198,7 +198,10 @@ defineEmits<{
   // 比内容还显眼、hover 底色是一大块；而卡片本身的边界在密集列表里也不是必需品 ——
   // 序号 + 标题已经能定界。悬停用 --acu-surface-hover 而不是 --acu-primary-soft
   // （后者会是一大片紫，是页面里最吵的动作），也不抬升、不投影（位移留给焦点本身）。
-  padding: 6px 10px 6px 0;
+  // 四周都要留白，尤其左边：hover 底色是一整块，序号若贴着块的左缘
+  // 就看得出「文字顶到边上」（2026-10-25 用户第二次反馈："hover 之后，
+  // 这个序号和边缘是挨着的"）。10px 与右侧箭头那侧的留白对齐。
+  padding: 6px 10px;
   text-align: left;
   background: transparent;
   border: 0;
