@@ -99,6 +99,56 @@ export interface PlanConfig {
   labels?: PlanLabels
 }
 
+/**
+ * 文件改动的类型。
+ *
+ * - `create`：新建
+ * - `edit`：局部修改（有增有删）
+ * - `write`：整体覆盖写入（只知道写了多少行，不知道原来是什么）
+ * - `delete`：删除
+ */
+export type FileChangeKind = 'create' | 'edit' | 'write' | 'delete'
+
+/**
+ * 一次「改文件」的结果。
+ *
+ * 由 `readFileChange(toolCall)` 从工具调用的参数里解析出来 —— 写文件类工具
+ * （write_file / edit_file / Write / Edit / MultiEdit …）的参数里本来就有
+ * 路径与新旧文本，不需要宿主再读一遍磁盘，实时流式与历史回放也是同一套口径。
+ */
+export interface FileChange {
+  /** 文件路径（工具参数里那个，可能是绝对路径） */
+  path: string
+  /** 改动类型 */
+  kind?: FileChangeKind
+  /** 新增行数 */
+  added?: number
+  /** 删除行数 */
+  removed?: number
+  /** 统一 diff 文本（`@@` / `+` / `-` / 空格开头），点开展示 */
+  patch?: string
+}
+
+/** 文件改动块的文案覆盖（宿主要走 i18n 时传自己的翻译） */
+export interface FileChangeLabels {
+  /** 标题，默认「文件改动」 */
+  title?: string
+  /** 文件数量单位，默认「个文件」（拼成 `3 个文件`） */
+  files?: string
+  /** 新增行的无障碍说明，默认「新增」 */
+  added?: string
+  /** 删除行的无障碍说明，默认「删除」 */
+  removed?: string
+  /** 展开提示，默认「查看改动」 */
+  expand?: string
+  /** 收起提示，默认「收起改动」 */
+  collapse?: string
+  /** 整文件写入那一行的副标题，默认「整体写入」 */
+  writeHint?: string
+  /** patch 为空时的占位，默认「无可预览的差异」 */
+  empty?: string
+}
+
 /** 单个工具调用 */
 export interface ToolCall {
   /** 工具调用 id（对应 OpenAI tool_call_id） */
@@ -125,6 +175,13 @@ export interface ToolCall {
   plan?: PlanStep[]
   /** 计划说明（模型对这次计划调整给出的解释） */
   planNote?: string
+  /**
+   * 这次调用改动了哪个文件。
+   *
+   * 不传时组件会自己从 `arguments` 解析（见 `readFileChange`）；
+   * 传了就以宿主给的为准（宿主可能读了真实前后文，比参数更准）。
+   */
+  fileChange?: FileChange
 }
 
 /**

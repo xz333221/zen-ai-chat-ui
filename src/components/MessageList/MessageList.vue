@@ -18,6 +18,7 @@
             :tool-calls-config="toolCallsConfig"
             :plan-config="planConfig"
             :ask-user-labels="askUserLabels"
+            :file-changes-labels="fileChangesLabels"
             :thinking-config="thinkingConfig"
             :actions-config="actionsConfig"
             :message-meta-config="messageMetaConfig"
@@ -71,6 +72,7 @@ import { ref, reactive, watch, computed, nextTick, onMounted, onBeforeUnmount } 
 import type {
   AskUserLabels,
   ChatMessage,
+  FileChangeLabels,
   PresetQuestion,
   FollowupConfig,
   ToolCallsConfig,
@@ -104,6 +106,8 @@ const props = withDefaults(
     planConfig?: PlanConfig
     /** 提问留档的文案覆盖（ask_user 答完之后那块的文案） */
     askUserLabels?: Partial<AskUserLabels>
+    /** 文件改动清单的文案覆盖（哪些文件被改了那块） */
+    fileChangesLabels?: FileChangeLabels
     /** 思考块展示配置（默认正文超高后内部滚动） */
     thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
@@ -122,6 +126,7 @@ const props = withDefaults(
     toolCallsConfig: undefined,
     planConfig: undefined,
     askUserLabels: undefined,
+    fileChangesLabels: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,

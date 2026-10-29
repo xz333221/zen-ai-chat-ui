@@ -54,6 +54,7 @@
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
     "verify:plan": "node scripts/verify-plan-parse.mjs",
+    "verify:file-change": "node scripts/verify-file-change.mjs",
     "verify:mermaid": "node scripts/verify-mermaid.mjs",
     "build:avatars": "node scripts/build-avatars.mjs",
     "release": "node scripts/release.js",

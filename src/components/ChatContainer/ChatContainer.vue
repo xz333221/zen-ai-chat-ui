@@ -35,6 +35,7 @@
         :message-meta-config="messageMetaConfig"
         :message-rail-config="messageRailConfig"
         :ask-user-labels="questionLabels"
+        :file-changes-labels="fileChangesLabels"
         @retry="(m) => $emit('retry', m)"
         @followup-select="onFollowupSelect"
       />
@@ -90,6 +91,7 @@ import type {
   FollowupInput,
   ToolCallsConfig,
   PlanConfig,
+  FileChangeLabels,
   ThinkingConfig,
   MessageActionsConfig,
   MessageMetaConfig,
@@ -241,6 +243,14 @@ const props = withDefaults(
      */
     planConfig?: PlanConfig
     /**
+     * 文件改动清单的文案覆盖。
+     *
+     * 写文件类工具调用（write_file / edit_file / Write / Edit …）会被解析成
+     * 「这一轮改了哪些文件」，在 assistant 气泡里列成可展开 diff 的清单。
+     * 走 i18n 的宿主在这里传自己的文案。
+     */
+    fileChangesLabels?: FileChangeLabels
+    /**
      * 思考块展示配置。
      * 默认给思考正文加 320px 高度上限、超出后内部滚动（长思考不会把气泡撑得极高），
      * 并在流式输出时自动贴底跟随。传 `{ scrollable: false }` 可恢复为全部铺开。
@@ -306,6 +316,7 @@ const props = withDefaults(
     followup: undefined,
     toolCallsConfig: undefined,
     planConfig: undefined,
+    fileChangesLabels: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,

@@ -79,6 +79,14 @@
           :ended-at="message.reasoningEndedAt"
         />
 
+        <!-- 文件改动清单（仅 assistant）：这一轮到底动了哪些文件，一眼看完 -->
+        <FileChangeList
+          v-if="fileChanges.length"
+          class="acu-bubble-filechanges"
+          :changes="fileChanges"
+          :labels="fileChangesLabels"
+        />
+
         <!-- 工具调用（仅 assistant）：多个调用默认折叠，只展示最新一个 -->
         <div v-if="hasToolCalls" class="acu-bubble-toolcalls">
           <ToolCallGroup
@@ -158,6 +166,7 @@ import type {
   AskUserLabels,
   ChatMessage,
   ChatAttachment,
+  FileChangeLabels,
   ToolCallsConfig,
   PlanConfig,
   ThinkingConfig,
@@ -165,9 +174,11 @@ import type {
   MessageMetaConfig
 } from '@/types'
 import { formatFileSize, isImageType } from '@/utils/format'
+import { collectFileChanges } from '@/utils/fileChange'
 import MarkdownRenderer from '@/components/MarkdownRenderer/MarkdownRenderer.vue'
 import ThinkingBlock from '@/components/ThinkingBlock/ThinkingBlock.vue'
 import ToolCallGroup from '@/components/ToolCallGroup/ToolCallGroup.vue'
+import FileChangeList from '@/components/FileChangeList/FileChangeList.vue'
 import MessageActions from '@/components/MessageActions/MessageActions.vue'
 import MessageMeta from '@/components/MessageMeta/MessageMeta.vue'
 import ImagePreview from '@/components/ImagePreview/ImagePreview.vue'
@@ -186,6 +197,8 @@ const props = withDefaults(
     planConfig?: PlanConfig
     /** 提问留档的文案覆盖（ask_user 答完之后那块的文案） */
     askUserLabels?: Partial<AskUserLabels>
+    /** 文件改动清单的文案覆盖 */
+    fileChangesLabels?: FileChangeLabels
     /** 思考块展示配置（高度上限 / 内部滚动 / 流式跟随） */
     thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
@@ -203,6 +216,7 @@ const props = withDefaults(
     toolCallsConfig: undefined,
     planConfig: undefined,
     askUserLabels: undefined,
+    fileChangesLabels: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,
@@ -218,6 +232,11 @@ const resolvedAssistantAvatar = computed(() => props.message.avatar || props.ass
 const resolvedUserAvatar = computed(() => props.message.avatar || props.userAvatar)
 const hasAttachments = computed(() => !!props.message.attachments?.length)
 const hasToolCalls = computed(() => !!props.message.toolCalls?.length)
+
+// 这一轮的「文件改动」：从工具调用参数里解析并按文件合并（见 utils/fileChange）
+const fileChanges = computed(() =>
+  props.message.role === 'assistant' ? collectFileChanges(props.message.toolCalls) : []
+)
 
 // 把 content 里嵌入的 <think>...</think> 段抽出来合到 reasoning,
 // 避免 <think>…直接混在正文里展示。

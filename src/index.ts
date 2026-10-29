@@ -13,6 +13,7 @@ export { default as ThinkingBlock } from './components/ThinkingBlock/ThinkingBlo
 export { default as ToolCallBlock } from './components/ToolCallBlock/ToolCallBlock.vue'
 export { default as ToolCallGroup } from './components/ToolCallGroup/ToolCallGroup.vue'
 export { default as PlanBlock } from './components/PlanBlock/PlanBlock.vue'
+export { default as FileChangeList } from './components/FileChangeList/FileChangeList.vue'
 export { default as MessageActions } from './components/MessageActions/MessageActions.vue'
 export { default as WelcomeScreen } from './components/WelcomeScreen/WelcomeScreen.vue'
 export { default as ChatInput } from './components/ChatInput/ChatInput.vue'
@@ -77,6 +78,15 @@ export {
 } from './utils/askUser'
 export type { AskUserRecord } from './utils/askUser'
 
+// 文件改动解析：宿主拿工具调用就能得到「改了哪些文件、几增几删、diff」
+export {
+  isFileChangeTool,
+  readFileChange,
+  collectFileChanges,
+  countLines
+} from './utils/fileChange'
+export type { ParsedFileChange } from './utils/fileChange'
+
 // 内置 AI 品牌头像（由 scripts/build-avatars.mjs 生成）
 export {
   AI_AVATARS,
@@ -106,6 +116,9 @@ export type {
   ChatMessage,
   ToolCall,
   ToolCallStatus,
+  FileChange,
+  FileChangeKind,
+  FileChangeLabels,
   ToolCallsConfig,
   PlanStep,
   PlanStepStatus,

@@ -13,6 +13,7 @@
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）。标题右侧带**思考段耗时**，流式实时跳、折叠也看得见
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **任务计划**：计划类工具调用（`update_plan` / `TodoWrite` …）自动渲染成带勾选态的清单（三态 + 进度条 + 说明），并在工具组折叠时保持常驻——折叠只藏别的调用，不藏当前计划
+- **文件改动**：写文件类工具调用（`write_file` / `edit_file` / `Write` / `Edit` / `MultiEdit` …）自动解析出「这一轮改了哪些文件」，在气泡里列成清单（文件名 + 增删行数），点开看 unified diff —— 数据来自工具调用参数，宿主不用额外存字段，流式与历史回放同一口径
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
 - **运行元信息**：可选在气泡下方展示回答耗时、首字延迟、token 用量（`1.2s · 510ms · ↑26 ↓571`），耗时由 `useStreaming` 自动计时；与操作栏同步悬停显示（可设常显）
 - **Markdown 渲染**：基于 markdown-it + Shiki，双主题代码高亮、表格、引用、任务列表，代码块带语言标签与一键复制。高亮结果按「语言 + 源码」缓存，且**流式期间不重复高亮"还在写、尚未闭合"的那个代码块**（流结束再补一次）—— 正文是每来一段增量就整篇重渲的，没有这两层保护时一次长回答能把主线程堵住好几秒
@@ -617,6 +618,7 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 | `followup`          | `FollowupInput`            | -          | 追问建议（详见下方）  |
 | `toolCallsConfig`   | `ToolCallsConfig`          | -          | 工具调用展示配置（详见下方） |
 | `planConfig`        | `PlanConfig`               | -          | 计划清单展示配置（详见下方） |
+| `fileChangesLabels` | `FileChangeLabels`         | -          | 文件改动清单的文案覆盖（详见下方） |
 | `thinkingConfig`    | `ThinkingConfig`           | -          | 思考块展示配置（详见下方） |
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
 | `messageMetaConfig` | `MessageMetaConfig`        | -          | 耗时 / token 元信息行配置（详见下方） |
@@ -636,7 +638,7 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 
 ### 其他可独立使用的组件
 
-`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`PlanBlock`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`ConversationList`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
+`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`PlanBlock`、`FileChangeList`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`ConversationList`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
 
 单独用时记得给它们套一层 `.acu-root`：盒模型重置（`box-sizing: border-box`）和主题令牌都挂在这个类下面，库靠它做到「组件内样式自洽、不污染宿主」。少了这层，`div` 类的根节点会退回 `content-box`（`width: 100%` + padding 就横着溢出），深色主题也不会生效。
 
@@ -886,6 +888,25 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 <!-- 一上来就收起的计划清单 -->
 <ChatContainer :messages="messages" :plan-config="{ defaultCollapsed: true }" />
 ```
+
+## 文件改动（FileChangeList）
+
+对话里最要紧的一件事是「它到底改了哪些文件」。工具调用是过程，这条清单是结果：
+
+```
+📄 文件改动  2 个文件                              +18 -4
+  src/ui/AgentView.vue                            +12 -3  ⌄
+    @@ -41,3 +41,4 @@
+    -const a = 1
+    +const a = 3
+  src/cli/paste.js                                 +6 -1  ⌄
+```
+
+- **不用宿主适配**：写文件类工具的参数里本来就有路径与新旧文本（`write_file`/`edit_file` 的 `path` + `content`/`old_string`，Claude Code 的 `Write`/`Edit`/`MultiEdit` 的 `file_path` + `edits[]`，`str_replace_editor` 的 `command` + `file_text`…），库在 `utils/fileChange.ts` 里统一归一，按文件合并（同一文件改多次 → 计数相加）。
+- **流式与回放同一套口径**：清单是从工具调用参数算出来的，不是服务端额外下发的字段，所以刷新后重看历史一样有。
+- **点一行才展开 diff**：逐行 LCS 生成 unified patch，只保留改动附近 3 行；整文件写入没有前文可比，就按「整体写入」标记 + 前 80 行预览，别让人误读成"全是新增"。
+- 解析函数都导出了，宿主要自己筛（例如只统计某个目录）可以用 `readFileChange` / `collectFileChanges` / `isFileChangeTool`。
+- 文案走 i18n 的宿主传 `fileChangesLabels`（`title` / `files` / `added` / `removed` / `expand` / `collapse` / `writeHint` / `empty`）。
 
 ## 图表（Mermaid）
 
