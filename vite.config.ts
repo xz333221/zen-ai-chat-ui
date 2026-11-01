@@ -19,9 +19,17 @@ export default defineConfig({
     })
   ],
   resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src')
-    }
+    // dev 演示页直接 import 包名（'ai-chat-ui' / 'ai-chat-ui/style.css'），
+    // 所以在这里把包名指回源码：改 src 立即热更，不必先 build dist。
+    // （不这样做时 bare import 靠 node_modules 自链接解析，npm install 一冲就废）
+    alias: [
+      {
+        find: /^ai-chat-ui\/style\.css$/,
+        replacement: resolve(__dirname, 'src/styles/index.scss')
+      },
+      { find: /^ai-chat-ui$/, replacement: resolve(__dirname, 'src/index.ts') },
+      { find: '@', replacement: resolve(__dirname, 'src') }
+    ]
   },
   css: {
     preprocessorOptions: {
