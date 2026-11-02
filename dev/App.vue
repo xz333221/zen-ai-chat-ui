@@ -614,6 +614,17 @@ const SCHEMA: ConfigGroup[] = [
     fields: [
       { key: 'railEnable', label: '启用侧边条', field: 'enable', type: 'bool', hint: '默认 false' },
       {
+        key: 'railAlign',
+        label: '站位',
+        field: 'align',
+        type: 'enum',
+        options: [
+          { value: 'edge', label: '贴对话面板左缘' },
+          { value: 'gutter', label: '跟着内容列走' }
+        ],
+        hint: "默认 'edge'"
+      },
+      {
         key: 'railWidthBy',
         label: '条宽依据',
         field: 'widthBy',
@@ -822,6 +833,7 @@ const DEFAULTS = {
 
   // 侧边条
   railEnable: true,
+  railAlign: 'edge' as 'edge' | 'gutter',
   railWidthBy: 'length' as 'length' | 'role',
   railMinWidth: 8,
   railMaxWidth: 26,
@@ -1115,6 +1127,7 @@ const messageMetaConfig = computed<MessageMetaConfig>(() => ({
 // —— 侧边消息条：一条消息一根短横条 ——
 const messageRailConfig = computed<MessageRailConfig>(() => ({
   enable: cfg.railEnable,
+  align: cfg.railAlign,
   widthBy: cfg.railWidthBy,
   minWidth: cfg.railMinWidth,
   maxWidth: cfg.railMaxWidth,

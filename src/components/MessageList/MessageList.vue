@@ -56,7 +56,6 @@
          MessageRail 自带的 CSS 公式只是没被量到时的兜底 -->
     <MessageRail
       v-if="railEnabled"
-      ref="railRef"
       :messages="messages"
       :active-id="activeMsgId"
       :config="messageRailConfig"
@@ -306,8 +305,11 @@ const activeMsgId = ref<string | null>(null)
 //   · 放不下 → 撑出一条车道：消息列 / 输入框 / 提问面板的左 padding 一起加上它，
 //     条退到 6px。车道变量（--acu-rail-lane）挂在 .acu-chat 上，footer / question
 //     才能一起让位（MessageList 够不到它们的样式，只能从祖先下发变量）。
+//
+// 2026-11-01 起默认改成 `align: 'edge'`：条贴**对话面板**左缘（10px），不再跟着内容列走。
+// 起因是宽面板下内容列居中（920px 上限），条被顶到面板中间偏左、看着像脱离了面板结构
+// （用户截图）。贴边后位置是恒定的，窄面板同样交给车道去让位。
 const wrapRef = ref<HTMLElement | null>(null)
-const railRef = ref<InstanceType<typeof MessageRail> | null>(null)
 const railLanePx = ref(0)
 const railLeftPx = ref<number | null>(null)
 let railRO: ResizeObserver | null = null
@@ -315,6 +317,8 @@ let railRO: ResizeObserver | null = null
 /** 条的右缘到内容列左缘的设计间距（沿用旧公式的 40px：最宽条 26 + 组件内边距 12 + 2） */
 const RAIL_CLEARANCE = 40
 const RAIL_MIN_LEFT = 6
+/** `align: 'edge'` 时条离面板左缘的距离 */
+const RAIL_EDGE_INSET = 10
 /** 真的挤到内容上时，车道额外留的呼吸位 */
 const RAIL_LANE_GAP = 8
 
@@ -333,7 +337,11 @@ function syncLaneVar(px: number) {
 function measureRailLane() {
   const wrap = wrapRef.value
   if (!wrap) return
-  const rail = railRef.value?.$el as HTMLElement | undefined
+  // ⚠️ 不能拿 `railRef.value.$el`：MessageRail 的根节点是 `v-if="bars.length > 1"`
+  // + 模板开头有注释，条不渲染时 $el 是个**注释节点**（没有 getBoundingClientRect），
+  // 一量就抛 `rail.getBoundingClientRect is not a function`，之后 railLeft 永远量不到，
+  // 内联 left 也就永远不生效（只有 CSS 兜底公式在起作用）。直接查 DOM。
+  const rail = wrap.querySelector<HTMLElement>('.acu-rail')
   const inner = wrap.querySelector<HTMLElement>('.acu-message-list-inner')
   if (!railEnabled.value || !rail || !inner) {
     // 条不在（未启用 / 只有 ≤1 轮）：车道归零，别把上一轮的让位残留在输入框上
@@ -348,7 +356,11 @@ function measureRailLane() {
   // 车道本身会把内容列往右推：量「原始位置」要把它减掉，否则量一次缩一次
   const innerLeft0 = inner.getBoundingClientRect().left - wrapLeft - railLanePx.value
   const railWidth = rail.getBoundingClientRect().width || 38
-  const railLeft = Math.max(RAIL_MIN_LEFT, innerLeft0 - RAIL_CLEARANCE)
+  // 两种站位：贴面板左缘（默认）或跟着内容列（旧行为）
+  const railLeft =
+    props.messageRailConfig?.align === 'gutter'
+      ? Math.max(RAIL_MIN_LEFT, innerLeft0 - RAIL_CLEARANCE)
+      : RAIL_EDGE_INSET
   railLeftPx.value = railLeft
   // 只有真的压到内容上才撑车道（roomy 情况保持 2px 设计间距，不动旧几何）
   const overlap = railLeft + railWidth - innerLeft0
@@ -362,6 +374,12 @@ function measureRailLane() {
 watch(railEnabled, (on) => {
   if (on) nextTick(() => measureRailLane())
 })
+
+// 换站位（edge ↔ gutter）时要重量一次：railLeft 是量出来的，不是 CSS 算的
+watch(
+  () => props.messageRailConfig?.align,
+  () => nextTick(() => measureRailLane())
+)
 
 watch(
   () => props.messages.length,

@@ -672,7 +672,7 @@ composable 也一并导出：`useStreaming`（流式接法见「流式输出」�
 
 - 三列的左右 padding 都算在列宽**以内**（`.acu-message-list-inner` / `.acu-input-wrap` / `.acu-welcome-inner` 都是 `box-sizing: border-box`），
   所以列宽一致时三个盒子的左右边缘严格对齐。
-- 侧边消息条（`messageRailConfig`）用 `calc` 贴住这一列的左边缘：大屏下内容列居中截断，它跟着列走，而不是留在屏幕最左边。
+- 侧边消息条（`messageRailConfig`）默认贴**对话面板**的左缘（`align: 'edge'`，离边 10px），位置恒定；容器窄到条会压住内容时，整套内容列会往右让出一条车道（`--acu-rail-lane`），条不会盖住消息。想让条跟着内容列走（旧行为）传 `align: 'gutter'`。
 - **把输入框拆出去时（`showInput=false`），这一列要自己接上**：给常驻输入框那层写一份同样的 `--acu-max-width`，否则输入框和消息列各走各的，左边缘差一截。`ChatInput` 自己就是 `max-width: var(--acu-max-width); margin: 0 auto`，宿主只要把变量摆对位置。
 
 ## 附件与图片预览
@@ -745,6 +745,7 @@ const attachments: ChatAttachment[] = files.map(f => ({
 | 字段            | 类型                  | 默认值      | 说明 |
 | --------------- | --------------------- | ----------- | ---- |
 | `enable`        | `boolean`             | `false`     | 是否启用。默认关闭——会话不长时它属于多余噪音，建议显式打开 |
+| `align`         | `'edge' \| 'gutter'`  | `'edge'`    | 站位：贴对话面板左缘（位置恒定），或贴着内容列左边缘走（列宽一变就跟着漂） |
 | `widthBy`       | `'length' \| 'even'`  | `'length'`  | 条宽依据：按本轮长度（对数），或全部等宽 |
 | `minWidth`      | `number`              | `8`         | 最短条宽（px） |
 | `maxWidth`      | `number`              | `26`        | 最长条宽（px） |

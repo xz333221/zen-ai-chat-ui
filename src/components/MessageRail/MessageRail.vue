@@ -272,12 +272,11 @@ defineExpose({ hovering })
 <style lang="scss" scoped>
 .acu-rail {
   position: absolute;
-  // 兜底落点：按「内容列 = --acu-max-width 且居中」推 40px 呼吸位。
-  // ⚠️ MessageList 会用**实测的内容列左边缘**注入 inline left 覆盖这里 ——
-  // 公式只是假设，宿主把 inner 覆盖成全宽时（真实发生过）它会把自己算进内容里。
-  // max(6px, …) 兜住「列比容器还宽」（即没被截断）的情况；var 的兜底值给 100%，
-  // 没引主题样式（令牌缺失）时同样退回 6px。
-  left: max(6px, calc(50% - var(--acu-max-width, 100%) / 2 - 40px));
+  // 兜底落点：贴对话面板左缘 10px（`align: 'edge'` 的默认站位）。
+  // ⚠️ MessageList 量完会注入 inline left 覆盖这里（edge → 10px，gutter → 内容列左 - 40px）。
+  // 这里只负责「还没量到」的那一帧，别把定位逻辑重新写回 CSS 公式：
+  // 公式假设「内容列 = --acu-max-width 且居中」，宿主把 inner 改全宽时会把条算进内容里。
+  left: 10px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 3;
