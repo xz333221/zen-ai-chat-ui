@@ -11,32 +11,42 @@
   <div
     v-if="bars.length > 1"
     class="acu-rail"
+    :class="{ 'is-hovering': hovering }"
     :style="{ '--acu-rail-idle': idleOpacity }"
     role="navigation"
     aria-label="对话轮次导航"
-    @mouseenter="hovering = true"
+    @mouseenter="onRailEnter"
     @mouseleave="onRailLeave"
   >
     <div
       ref="stackRef"
       class="acu-rail-stack"
-      :style="{ gap: `${gap}px`, maxHeight: `${maxHeight}px` }"
+      :style="{ maxHeight: `${maxHeight}px` }"
       @scroll="onStackScroll"
     >
+      <!--
+        每一"轮"占**一整行**（高 = 条高 + 间距），视觉上的那根短条只是行内的一根线。
+        为什么不是"按钮就是那根 3px 的条"（2026-11-01 用户反馈「可 hover 的区域太小，
+        稍微一动就失去 hover」）：3px 的条之间还隔着 10px 的空隙，指针稍微歪一点就
+        掉进空隙，浮层跟着闪。整行做命中区之后，竖向上没有任何死区，横向上也吃满
+        整条侧栏的宽度（悬停判定和点击目标一起变大），而条的视觉尺寸完全不变。
+      -->
       <button
         v-for="(bar, i) in bars"
         :key="bar.id"
         type="button"
         class="acu-rail-bar"
         :class="{ 'is-active': bar.id === activeBarId, 'is-streaming': bar.streaming, 'is-hot': i === hotIndex }"
-        :style="{ width: `${bar.width}px`, height: `${barHeight}px` }"
+        :style="{ height: `${step}px` }"
         :data-turn-id="bar.id"
         :aria-label="bar.title"
         :aria-current="bar.id === activeBarId ? 'true' : undefined"
         @click="onPick(i)"
         @mouseenter="hotIndex = i"
         @focus="hotIndex = i"
-      />
+      >
+        <span class="acu-rail-mark" :style="{ width: `${bar.width}px`, height: `${barHeight}px` }" />
+      </button>
     </div>
 
     <div v-if="showTooltip && hotBar" class="acu-rail-tip" :style="{ top: `${tipTop}px` }">
@@ -47,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { ChatMessage, MessageRailConfig } from '@/types'
 
 /** 一根条 = 一轮问答 */
@@ -86,6 +96,7 @@ const emit = defineEmits<{
 const cfg = computed<Required<Omit<MessageRailConfig, 'enable'>>>(() => {
   const c = props.config ?? {}
   return {
+    align: c.align ?? 'edge',
     widthBy: c.widthBy ?? 'length',
     minWidth: c.minWidth ?? 8,
     maxWidth: c.maxWidth ?? 26,
@@ -99,6 +110,8 @@ const cfg = computed<Required<Omit<MessageRailConfig, 'enable'>>>(() => {
 })
 
 const barHeight = computed(() => cfg.value.barHeight)
+/** 一行的高度（条 + 间距）——命中区就是这一整行，见模板里的注释 */
+const step = computed(() => barHeight.value + gap.value)
 const maxHeight = computed(() => cfg.value.maxHeight)
 const idleOpacity = computed(() => cfg.value.idleOpacity)
 const showTooltip = computed(() => cfg.value.showTooltip)
@@ -231,20 +244,44 @@ const stackScroll = ref(0)
 
 const hotBar = computed(() => (hotIndex.value >= 0 ? bars.value[hotIndex.value] ?? null : null))
 
-/** 浮层的纵坐标 = 该条的偏移 - 条组已滚动的距离 */
+/** 浮层的纵坐标 = 该条所在行的中线 - 条组已滚动的距离 */
 const tipTop = computed(() => {
-  const step = barHeight.value + gap.value
-  return hotIndex.value * step + barHeight.value / 2 - stackScroll.value
+  return hotIndex.value * step.value + step.value / 2 - stackScroll.value
 })
 
 function onStackScroll() {
   stackScroll.value = stackRef.value?.scrollTop ?? 0
 }
 
-function onRailLeave() {
-  hovering.value = false
-  hotIndex.value = -1
+/**
+ * 悬停的"宽限"：离开侧栏后延迟收起。
+ *
+ * 侧栏本身只有 38px 宽，指针往右挪一点（想去读浮层）就会先离开元素；
+ * 不留宽限的话浮层会在半路消失，手感就是"稍微一动 hover 就没了"。
+ * 200ms 足够跨过缝隙，又短到不会让浮层赖着不走。
+ */
+let leaveTimer: ReturnType<typeof setTimeout> | null = null
+
+function onRailEnter() {
+  if (leaveTimer) {
+    clearTimeout(leaveTimer)
+    leaveTimer = null
+  }
+  hovering.value = true
 }
+
+function onRailLeave() {
+  if (leaveTimer) clearTimeout(leaveTimer)
+  leaveTimer = setTimeout(() => {
+    hovering.value = false
+    hotIndex.value = -1
+    leaveTimer = null
+  }, 200)
+}
+
+onBeforeUnmount(() => {
+  if (leaveTimer) clearTimeout(leaveTimer)
+})
 
 /** 点击 → 跳到这一轮的**提问**处（而不是这条 assistant 回答的中间） */
 function onPick(i: number) {
@@ -288,8 +325,11 @@ defineExpose({ hovering })
   opacity: var(--acu-rail-idle, 0.3);
   transition: opacity var(--acu-duration) var(--acu-easing);
 
+  // .is-hovering：离开后有 200ms 宽限（见 onRailLeave），这段时间里
+  // CSS 的 :hover 已经失效，靠这个类把不透明度也一并留住，免得"浮层还在、条却先淡了"
   &:hover,
-  &:focus-within {
+  &:focus-within,
+  &.is-hovering {
     opacity: 1;
   }
 }
@@ -307,31 +347,47 @@ defineExpose({ hovering })
   }
 }
 
+/*
+  一行一轮：命中区是整行（高 = 条高 + 间距，宽 = 最宽那条），
+  视觉上只画行内那根 3px 的线。行与行首尾相接，指针在条与条之间移动时不会掉进空隙。
+*/
 .acu-rail-bar {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  width: 100%;
   padding: 0;
   border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.acu-rail-mark {
+  display: block;
   border-radius: var(--acu-radius-full);
   background: var(--acu-text-muted);
-  cursor: pointer;
   transition: background-color var(--acu-duration) var(--acu-easing);
-  @include acu-focus-ring(2px);
 
-  &:hover,
-  &.is-hot {
+  .acu-rail-bar:hover &,
+  .acu-rail-bar.is-hot & {
     background: var(--acu-text-secondary);
   }
 
-  &.is-active {
+  .acu-rail-bar.is-active & {
     // 只换颜色、不动宽度：宽度是数据（这一轮的长度）的编码，
     // 再叠一个 scaleX 会让「这轮更长」这个语义失真
     background: var(--acu-primary);
   }
 
-  &.is-streaming {
+  .acu-rail-bar.is-streaming & {
     // ease-in-out 而非全局 --acu-easing：往返关键帧需要对称曲线才是「呼吸」
     animation: acu-rail-pulse 1.2s ease-in-out infinite;
   }
+}
+
+// 焦点环画在那根线上：整行 40px 宽的矩形框会显得莫名其妙
+.acu-rail-bar:focus-visible .acu-rail-mark {
+  @include acu-focus-ring(2px);
 }
 
 @keyframes acu-rail-pulse {
@@ -345,7 +401,7 @@ defineExpose({ hovering })
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .acu-rail-bar.is-streaming {
+  .acu-rail-bar.is-streaming .acu-rail-mark {
     animation: none;
   }
 }
@@ -355,6 +411,18 @@ defineExpose({ hovering })
   position: absolute;
   left: 100%;
   margin-left: 8px;
+
+  // 桥：把条与浮层之间那 8px 空隙也算进浮层的命中区。
+  // 否则指针想挪过去看摘要时，先掉出 .acu-rail → mouseleave → 浮层消失，
+  // 看着就像「稍微一动 hover 就没了」。
+  &::before {
+    content: '';
+    position: absolute;
+    right: 100%;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+  }
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
@@ -368,7 +436,9 @@ defineExpose({ hovering })
   border-radius: var(--acu-radius-sm);
   font-size: var(--acu-font-size-xs);
   line-height: 1.45;
-  pointer-events: none;
+  // 可悬停：摘要有两行以上，想读完就得能把指针移上去。
+  // 配合下面的桥，指针从条挪到浮层这一路都还在 .acu-rail 里，不会触发 mouseleave
+  pointer-events: auto;
   z-index: 4;
 }
 
