@@ -189,30 +189,30 @@ defineEmits<{
   display: flex;
   align-items: flex-start;
   gap: var(--acu-space-2);
-  // 平铺行，不是卡片（2026-10-25 用户反馈：「这是组件库内置的提示词样式吗？
-  // 感觉有点丑，少点padding」）。这一块演进过三版：
-  //   ① 灰底填色 —— 近白页面上读成一块块「被禁用的表单域」；
-  //   ② 白底 + 1px 描边 —— 靠边界立住、视觉重量降一档；
-  //   ③ 现在：平铺行，去底去描边，hover 才铺一层中性底。
-  // 走到 ③ 的原因：②的 16px 内边距是按「独立卡片」配的，九张/五张并排时行内留白
-  // 比内容还显眼、hover 底色是一大块；而卡片本身的边界在密集列表里也不是必需品 ——
-  // 序号 + 标题已经能定界。悬停用 --acu-surface-hover 而不是 --acu-primary-soft
-  // （后者会是一大片紫，是页面里最吵的动作），也不抬升、不投影（位移留给焦点本身）。
-  // 四周都要留白，尤其左边：hover 底色是一整块，序号若贴着块的左缘
-  // 就看得出「文字顶到边上」（2026-10-25 用户第二次反馈："hover 之后，
-  // 这个序号和边缘是挨着的"）。10px 与右侧箭头那侧的留白对齐。
-  padding: 6px 10px;
+  // 演进到第 ④ 版（2026-11-01 用户：「加个边框或者阴影，不需要太深」）：
+  //   ① 灰底填色 → 读成被禁用的表单域；
+  //   ② 白底 + 1px 描边 + 16px 内边距 → 边界立住了，但卡片感太重、九张并排像表单；
+  //   ③ 平铺行（无底无边，hover 才铺中性底）→ 干净，但在近白页面上整块区域没有体积，
+  //      用户反馈「看不出这里是可以点的目录」；
+  //   ④ 现在：白底 + **只用一层极轻的投影**立边界，不画描边 ——
+  //      宿主的偏好是「不喜欢圆角 + 单 border」，所以体积交给阴影而不是框线。
+  //      内边距比 ② 收一半（10px），比 ③ 略放（卡片里文字不能贴边），
+  //      九张并排仍有目录的密度，不会退回到「一排表单」。
+  padding: 10px 12px;
   text-align: left;
-  background: transparent;
+  background: var(--acu-card-bg);
   border: 0;
-  border-radius: var(--acu-radius-xs);
+  border-radius: var(--acu-radius-sm);
+  box-shadow: var(--acu-shadow-sm);
   cursor: pointer;
   font-family: inherit;
-  transition: background-color var(--acu-duration) var(--acu-easing);
+  transition: background-color var(--acu-duration) var(--acu-easing),
+    box-shadow var(--acu-duration) var(--acu-easing);
   @include acu-focus-ring;
 
   &:hover {
-    background: var(--acu-surface-hover);
+    // hover 只把投影加深一档：换底色会让一整块色块在密集网格里很吵
+    box-shadow: var(--acu-shadow);
 
     .acu-preset-q-arrow {
       color: var(--acu-primary);

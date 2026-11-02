@@ -233,7 +233,9 @@ const props = withDefaults(
     compact?: boolean
     /**
      * 是否可折叠：工具条右端多一枚收起按钮，收起后整列只剩一条收纳条。
-     * 默认关闭 —— 折叠是宿主的版面决策，且**列宽要宿主自己收**（库收不动宿主的 grid/flex）。
+     * 默认开启（2026-11-01 用户要求「收起按钮默认展示」）——
+     * 列宽仍由宿主自己收：库收不动宿主的 grid/flex，只负责把收纳条画满那一列。
+     * @default true
      */
     collapsible?: boolean
     /**
@@ -250,7 +252,7 @@ const props = withDefaults(
     showSearch: true,
     showNew: true,
     compact: false,
-    collapsible: false,
+    collapsible: true,
     // 显式给 undefined：这样"没传"与"传了 false"能分开，
     // 非受控模式才成立（Boolean 类型不写 default 时 Vue 会把缺失值铸成 false）
     collapsed: undefined,

@@ -428,7 +428,7 @@ const conversations = ref<ConversationItem[]>([
 - **行内重命名**：点铅笔或双击条目进入编辑，Enter / 失焦提交、Esc 取消；标题没变或为空则不抛事件
 - **时间等文案由消费方格式化**：库不做相对时间与 i18n，`meta` / `generatingText` / `badge` 都是现成字符串（要 i18n 就传 `labels`）
 - **紧凑模式** `compact`：更小行高与字号，适合窄面板 / 侧栏
-- **可选折叠** `collapsible`：工具条右端多一枚收起按钮，收起后整列只剩一条收纳条（图标 + 竖排文案，整条可点）。**列宽由宿主自己收** —— 库不知道宿主是 flex 还是 grid 在排这两列，推荐收到 36–44px（`padding` 也要跟着收，否则 40px 里只剩十几px）。状态用 `v-model:collapsed` 受控；不绑也能用（组件自己记）
+- **折叠默认开启** `collapsible`：工具条右端多一枚收起按钮，收起后整列只剩一条收纳条（图标 + 竖排文案，整条可点）。**列宽由宿主自己收** —— 库不知道宿主是 flex 还是 grid 在排这两列，推荐收到 36–44px（`padding` 也要跟着收，否则 40px 里只剩十几px）。状态用 `v-model:collapsed` 受控；不绑也能用（组件自己记）。不想要这枚按钮就传 `:collapsible="false"`
 - 选中项用主色软底 + 左侧 3px 竖条；操作按钮悬停或聚焦时才显形；`activeId` 变化时当前项自动滚进视野
 
 | Prop          | 类型                          | 默认值  | 说明 |
@@ -439,7 +439,7 @@ const conversations = ref<ConversationItem[]>([
 | `showSearch`  | `boolean`                     | `true`  | 是否展示搜索框 |
 | `showNew`     | `boolean`                     | `true`  | 是否展示新建按钮 |
 | `compact`     | `boolean`                     | `false` | 紧凑模式（窄面板 / 侧栏） |
-| `collapsible` | `boolean`                     | `false` | 是否可折叠（工具条右端多一枚收起按钮） |
+| `collapsible` | `boolean`                     | `true`  | 是否可折叠（工具条右端多一枚收起按钮） |
 | `collapsed`   | `boolean`                     | -       | 折叠态；配 `v-model:collapsed` 用，不传则组件自己记 |
 | `labels`      | `Partial<ConversationListLabels>` | -   | 文案覆盖（走 i18n 时用） |
 

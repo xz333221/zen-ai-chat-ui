@@ -850,7 +850,8 @@ const DEFAULTS = {
   // 会话列表
   convShow: true,
   convCompact: false,
-  convCollapsible: false,
+  // 与库的新默认值对齐：收起按钮默认就在工具条右端（宿主仍可用 :collapsible 关掉）
+  convCollapsible: true,
   convGenerating: false,
 
   // 排队（生成中继续发）
