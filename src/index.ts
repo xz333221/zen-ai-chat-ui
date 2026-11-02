@@ -25,6 +25,7 @@ export { default as MermaidPreview } from './components/MermaidPreview/MermaidPr
 export { default as MessageRail } from './components/MessageRail/MessageRail.vue'
 export { default as AskUserPanel } from './components/AskUserPanel/AskUserPanel.vue'
 export { default as ConversationList } from './components/ConversationList/ConversationList.vue'
+export { default as BackgroundTasks } from './components/BackgroundTasks/BackgroundTasks.vue'
 
 // composables
 export {
@@ -151,6 +152,7 @@ export type {
   ContextUsage,
   QueuedMessage,
   QueueLabels,
+  BackgroundTasksLabels,
   SelectedFile
 } from './types'
 

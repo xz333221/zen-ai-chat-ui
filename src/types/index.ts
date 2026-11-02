@@ -828,6 +828,23 @@ export interface QueueLabels {
   remove?: string
 }
 
+/**
+ * 后台任务条的文案覆盖。
+ *
+ * 后台进程（`status === 'background'`）不进消息里的工具调用组，统一收在
+ * 输入框上方那一条里，默认折叠。宿主走 i18n 时在这里传自己的翻译。
+ */
+export interface BackgroundTasksLabels {
+  /** 标题，默认「后台任务」 */
+  title?: string
+  /** 数量单位，默认「项」 */
+  unit?: string
+  /** 展开按钮文案（也作 title / aria），默认「展开」 */
+  expand?: string
+  /** 收起按钮文案（也作 title / aria），默认「收起」 */
+  collapse?: string
+}
+
 /** 附件选择回调参数 */
 export interface SelectedFile {
   file: File

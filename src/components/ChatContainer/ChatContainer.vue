@@ -57,6 +57,11 @@
       </div>
     </transition>
 
+    <!-- 后台任务条：还在跑的后台进程从工具组里拿出来，常驻在输入框上方（默认折叠） -->
+    <div v-if="backgroundTasks && backgroundCalls.length" class="acu-chat-bgtasks">
+      <BackgroundTasks :tool-calls="backgroundCalls" :labels="backgroundTasksLabels" />
+    </div>
+
     <!-- 输入框：showInput=false 时不渲染，由宿主自己摆在别处（VSCode 式底部常驻） -->
     <div v-if="showInput" class="acu-chat-footer">
       <ChatInput
@@ -100,12 +105,15 @@ import type {
   AskUserLabels,
   ContextUsage,
   QueuedMessage,
-  QueueLabels
+  QueueLabels,
+  BackgroundTasksLabels,
+  ToolCall
 } from '@/types'
 import MessageList from '@/components/MessageList/MessageList.vue'
 import WelcomeScreen from '@/components/WelcomeScreen/WelcomeScreen.vue'
 import ChatInput from '@/components/ChatInput/ChatInput.vue'
 import AskUserPanel from '@/components/AskUserPanel/AskUserPanel.vue'
+import BackgroundTasks from '@/components/BackgroundTasks/BackgroundTasks.vue'
 import { useResolvedTheme } from '@/composables/useResolvedTheme'
 
 const props = withDefaults(
@@ -243,6 +251,19 @@ const props = withDefaults(
      */
     planConfig?: PlanConfig
     /**
+     * 是否展示「后台任务条」。
+     *
+     * 后台进程（工具调用里 `status === 'background'` 的那些）不混在消息里的
+     * 工具调用组，统一收在输入框上方这一条里：常驻、默认折叠、只显示任务名与数量。
+     * 它们往往在好几轮之前就起来了，跟着对话往上滚走会让用户以为 dev server 没了。
+     *
+     * 关掉后这些调用会被直接丢弃（工具组也不再渲染它们）—— 不想要这条就别传 `background` 状态。
+     * @default true
+     */
+    backgroundTasks?: boolean
+    /** 后台任务条的文案覆盖（宿主项目要走 i18n 时传自己的翻译） */
+    backgroundTasksLabels?: Partial<BackgroundTasksLabels>
+    /**
      * 文件改动清单的文案覆盖。
      *
      * 写文件类工具调用（write_file / edit_file / Write / Edit …）会被解析成
@@ -316,6 +337,8 @@ const props = withDefaults(
     followup: undefined,
     toolCallsConfig: undefined,
     planConfig: undefined,
+    backgroundTasks: true,
+    backgroundTasksLabels: undefined,
     fileChangesLabels: undefined,
     thinkingConfig: undefined,
     actionsConfig: undefined,
@@ -338,6 +361,26 @@ const cssMaxWidth = computed(() =>
       ? `${props.maxWidth}px`
       : props.maxWidth
 )
+
+/**
+ * 还在跑的后台进程：**跨消息**汇总，最新的一批排在后面。
+ *
+ * 为什么不是只看最后一条消息：后台命令的典型场景是「第一轮起了 dev server，
+ * 后面十几轮都在改代码」，它挂在很早的那条消息上。只看最后一条等于它一转身就消失。
+ * 为什么按 id 去重：流式过程中宿主可能整条消息重建，同一调用会短暂出现两份。
+ */
+const backgroundCalls = computed<ToolCall[]>(() => {
+  const seen = new Set<string>()
+  const out: ToolCall[] = []
+  for (const m of props.messages) {
+    for (const tc of m.toolCalls || []) {
+      if (tc.status !== 'background' || seen.has(tc.id)) continue
+      seen.add(tc.id)
+      out.push(tc)
+    }
+  }
+  return out
+})
 
 const emit = defineEmits<{
   (e: 'send', payload: { text: string; files: SelectedFile[] }): void
@@ -425,6 +468,26 @@ defineExpose({
 
   // showInput=false（输入框在宿主那边）时提问面板就是容器的最后一格，
   // 底下得自己留一口气，否则会贴着容器底边
+  &:last-child {
+    padding-bottom: var(--acu-space-3);
+  }
+}
+
+// 后台任务条：与消息列、提问面板、输入框同宽同列，贴在输入框正上方
+.acu-chat-bgtasks {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: var(--acu-max-width);
+  margin: 0 auto;
+  padding: 0 var(--acu-space-4);
+  padding-left: calc(var(--acu-space-4) + var(--acu-rail-lane, 0px));
+
+  // 输入框自己有 12px 上边距，这里只留 4px：两条相邻的横条之间不能有双倍空隙
+  &:not(:last-child) {
+    padding-bottom: var(--acu-space-1);
+  }
+
+  // showInput=false（宿主自己摆输入框）时它是容器最后一格，得自己收个尾
   &:last-child {
     padding-bottom: var(--acu-space-3);
   }

@@ -618,6 +618,8 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 | `followup`          | `FollowupInput`            | -          | 追问建议（详见下方）  |
 | `toolCallsConfig`   | `ToolCallsConfig`          | -          | 工具调用展示配置（详见下方） |
 | `planConfig`        | `PlanConfig`               | -          | 计划清单展示配置（详见下方） |
+| `backgroundTasks`   | `boolean`                  | `true`     | 是否把后台进程收进输入框上方的「后台任务条」（详见下方） |
+| `backgroundTasksLabels` | `BackgroundTasksLabels` | -        | 后台任务条的文案覆盖（标题 / 单位 / 展开 / 收起） |
 | `fileChangesLabels` | `FileChangeLabels`         | -          | 文件改动清单的文案覆盖（详见下方） |
 | `thinkingConfig`    | `ThinkingConfig`           | -          | 思考块展示配置（详见下方） |
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
@@ -840,6 +842,36 @@ assistant.toolCalls[0].result = '{ "name": "my-app" }'
 ```vue
 <ToolCallGroup :tool-calls="msg.toolCalls ?? []" :config="{ defaultExpanded: true }" />
 ```
+
+## 后台任务条（BackgroundTasks）
+
+后台进程（`status: 'background'`）**不进消息里的工具调用组**，而是被收进输入框正上方的那一条里：常驻、默认折叠、只显示任务名和数量。典型场景是第一轮起了 `npm run dev`，后面十几轮都在改代码 —— 跟着对话往上滚走，用户会以为服务已经没了。
+
+```ts
+// 启动成功时把这一条状态改成 background；进程退出后再改回 done
+assistant.toolCalls.push({
+  id: 'bg1',
+  name: 'run_command',
+  argsPreview: '[后台] npm run dev',
+  status: 'background',
+  result: '$ npm run dev\nVITE ready in 421 ms'
+})
+```
+
+```
+┌──────────────────────────────────────────┐
+│ ● 后台任务  1 项                    展开 ⌄ │  ← 默认折叠
+├──────────────────────────────────────────┤
+│ ● 🔧 run_command  [后台] npm run dev   ⌄ │  ← 展开后每个任务自己也折叠着
+└──────────────────────────────────────────┘
+[ 输入框 ]
+```
+
+- **跨消息汇总**：只要状态还是 `background` 就一直显示，不管它挂在哪条消息上；改回 `done` 后自动从条上消失、回到历史里。
+- **默认折叠**：条带本身和每个任务都先折着，点开才看参数 / 结果（持续滚动的日志会把输入框顶走）。
+- 不想要这条：`:background-tasks="false"`（这些调用会直接不渲染），或干脆别让宿主把状态设成 `background`。
+- 文案：`:background-tasks-labels="{ title: 'Background', unit: 'tasks', expand: 'Expand', collapse: 'Collapse' }"`。
+- 单独使用：`import { BackgroundTasks } from 'zen-ai-chat-ui'`，样式与 `<ToolCallBlock>` 一致，自己传 `:tool-calls` 与 `:default-collapsed`。
 
 ## 计划清单（PlanBlock）
 

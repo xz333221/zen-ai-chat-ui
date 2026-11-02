@@ -112,17 +112,27 @@ const props = withDefaults(
     planConfig?: PlanConfig
     /** 提问留档的文案覆盖（只在 ask_user 调用上生效） */
     askUserLabels?: Partial<AskUserLabels>
+    /**
+     * 后台调用是否自动展开。
+     *
+     * 默认 `true`：后台命令的价值全在持续滚动的日志上，折着等于没显示。
+     * 输入框上方的「后台任务条」传 `false` —— 那里默认整体折叠，先给一行任务名，
+     * 想看日志再点开，否则一开条带就把输入框顶走。
+     * @default true
+     */
+    expandBackground?: boolean
   }>(),
-  { planConfig: undefined, askUserLabels: undefined }
+  { planConfig: undefined, askUserLabels: undefined, expandBackground: true }
 )
 
 const status = computed<ToolCallStatus>(() => props.toolCall.status || 'pending')
 
 // 后台命令默认展开：它的价值全在持续滚动的日志上，折着就等于没显示。
 // 初值之外还要 watch —— 卡片创建时状态是 running，变成 background 是在工具返回之后。
-const expanded = ref(status.value === 'background')
+// `expandBackground=false` 时整条规则让位（后台任务条里每个条目都要先折着）。
+const expanded = ref(status.value === 'background' && props.expandBackground)
 watch(status, (s) => {
-  if (s === 'background') expanded.value = true
+  if (s === 'background' && props.expandBackground) expanded.value = true
 })
 
 /**
