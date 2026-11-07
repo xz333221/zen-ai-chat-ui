@@ -110,6 +110,22 @@ export interface PlanConfig {
 export type FileChangeKind = 'create' | 'edit' | 'write' | 'delete'
 
 /**
+ * 点开一个文件时，diff 展示在哪里。
+ *
+ * - `drawer`：右侧抽屉（默认）。清单可以很长，抽屉不挤占对话流
+ * - `inline`：就地展开在那一行下面（旧行为，适合只有一个文件的轻量场景）
+ */
+export type FileChangeOpenMode = 'drawer' | 'inline'
+
+/**
+ * 文件改动清单挂在哪儿。
+ *
+ * - `session`：整段会话的改动汇总，挂在消息列表末尾（默认）
+ * - `message`：每一条 assistant 消息各自一份（旧行为）
+ */
+export type FileChangePosition = 'session' | 'message'
+
+/**
  * 一次「改文件」的结果。
  *
  * 由 `readFileChange(toolCall)` 从工具调用的参数里解析出来 —— 写文件类工具
@@ -147,6 +163,8 @@ export interface FileChangeLabels {
   writeHint?: string
   /** patch 为空时的占位，默认「无可预览的差异」 */
   empty?: string
+  /** 抽屉右上角关闭按钮的文案（aria-label / title），默认「关闭」 */
+  close?: string
 }
 
 /** 单个工具调用 */

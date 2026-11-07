@@ -621,6 +621,8 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 | `backgroundTasks`   | `boolean`                  | `true`     | 是否把后台进程收进输入框上方的「后台任务条」（详见下方） |
 | `backgroundTasksLabels` | `BackgroundTasksLabels` | -        | 后台任务条的文案覆盖（标题 / 单位 / 展开 / 收起） |
 | `fileChangesLabels` | `FileChangeLabels`         | -          | 文件改动清单的文案覆盖（详见下方） |
+| `fileChangesPosition` | `'session' \| 'message'` | `'session'` | 文件改动清单挂在哪：会话末尾汇总 / 每条气泡一份（详见下方） |
+| `fileChangesOpenMode` | `'drawer' \| 'inline'`   | `'drawer'`  | 点开文件时 diff 放在右侧抽屉 / 就地展开（详见下方） |
 | `thinkingConfig`    | `ThinkingConfig`           | -          | 思考块展示配置（详见下方） |
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
 | `messageMetaConfig` | `MessageMetaConfig`        | -          | 耗时 / token 元信息行配置（详见下方） |
@@ -640,7 +642,7 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 
 ### 其他可独立使用的组件
 
-`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`PlanBlock`、`FileChangeList`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`ConversationList`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
+`MessageList`、`MessageBubble`、`ThinkingBlock`、`ToolCallBlock`、`ToolCallGroup`、`PlanBlock`、`FileChangeList`、`FileChangeDrawer`、`FileChangeDiff`、`MessageActions`、`MessageMeta`、`MessageRail`、`WelcomeScreen`、`ChatInput`、`AskUserPanel`、`ConversationList`、`MarkdownRenderer`、`FollowupSuggestions`、`ImagePreview` 均已导出，可单独使用。
 
 单独用时记得给它们套一层 `.acu-root`：盒模型重置（`box-sizing: border-box`）和主题令牌都挂在这个类下面，库靠它做到「组件内样式自洽、不污染宿主」。少了这层，`div` 类的根节点会退回 `content-box`（`width: 100%` + padding 就横着溢出），深色主题也不会生效。
 
@@ -924,22 +926,25 @@ assistant.toolCalls.push({
 
 ## 文件改动（FileChangeList）
 
-对话里最要紧的一件事是「它到底改了哪些文件」。工具调用是过程，这条清单是结果：
+对话里最要紧的一件事是「它到底改了哪些文件」。工具调用是过程，这条清单是结果，
+默认**汇总挂在会话末尾**（整段对话改过的文件按路径合并成一份）：
 
 ```
 📄 文件改动  2 个文件                              +18 -4
-  src/ui/AgentView.vue                            +12 -3  ⌄
-    @@ -41,3 +41,4 @@
-    -const a = 1
-    +const a = 3
-  src/cli/paste.js                                 +6 -1  ⌄
+  src/ui/AgentView.vue                            +12 -3  ›
+  src/cli/paste.js                                 +6 -1  ›
 ```
 
+- **点一行开右侧抽屉**：清单只回答「改了哪些」，diff 放在右侧抽屉里看（行号 + 增删底色 +
+  Shiki 语法高亮），不把几十份 diff 铺进对话流。抽屉支持 Esc / 点遮罩关闭，打开时锁背景滚动。
+- **位置与打开方式可配**：`fileChangesPosition="message"` 退回「每条气泡一份」，
+  `fileChangesOpenMode="inline"` 退回就地展开（旧行为）。
 - **不用宿主适配**：写文件类工具的参数里本来就有路径与新旧文本（`write_file`/`edit_file` 的 `path` + `content`/`old_string`，Claude Code 的 `Write`/`Edit`/`MultiEdit` 的 `file_path` + `edits[]`，`str_replace_editor` 的 `command` + `file_text`…），库在 `utils/fileChange.ts` 里统一归一，按文件合并（同一文件改多次 → 计数相加）。
 - **流式与回放同一套口径**：清单是从工具调用参数算出来的，不是服务端额外下发的字段，所以刷新后重看历史一样有。
-- **点一行才展开 diff**：逐行 LCS 生成 unified patch，只保留改动附近 3 行；整文件写入没有前文可比，就按「整体写入」标记 + 前 80 行预览，别让人误读成"全是新增"。
-- 解析函数都导出了，宿主要自己筛（例如只统计某个目录）可以用 `readFileChange` / `collectFileChanges` / `isFileChangeTool`。
-- 文案走 i18n 的宿主传 `fileChangesLabels`（`title` / `files` / `added` / `removed` / `expand` / `collapse` / `writeHint` / `empty`）。
+- **整文件写入没有前文可比**：按「整体写入」标记 + 前 80 行预览，别让人误读成"全是新增"。
+- 解析函数都导出了，宿主要自己筛（例如只统计某个目录）可以用 `readFileChange` / `collectFileChanges` / `isFileChangeTool`；
+  想把 diff 画到自己的控件里，可以用 `parseUnifiedDiff`（行号 / 行类型）+ `highlightDiff`（每行一段高亮 HTML）+ `diffLanguage`（按扩展名猜语言）。
+- 文案走 i18n 的宿主传 `fileChangesLabels`（`title` / `files` / `added` / `removed` / `expand` / `collapse` / `writeHint` / `empty` / `close`）。
 
 ## 图表（Mermaid）
 

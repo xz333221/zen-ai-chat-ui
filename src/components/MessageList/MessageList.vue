@@ -19,6 +19,8 @@
             :plan-config="planConfig"
             :ask-user-labels="askUserLabels"
             :file-changes-labels="fileChangesLabels"
+            :show-file-changes="fileChangesPosition !== 'session'"
+            :file-changes-open-mode="fileChangesOpenMode"
             :thinking-config="thinkingConfig"
             :actions-config="actionsConfig"
             :message-meta-config="messageMetaConfig"
@@ -34,6 +36,19 @@
             @select="(q) => $emit('followup-select', q, msg)"
           />
         </template>
+
+        <!--
+          会话级文件改动：整段对话改过的文件汇总成一份，挂在消息末尾。
+          放在这里而不是每条气泡里 —— 多轮下来同一个文件会被反复改，
+          逐轮铺一遍既重复又把结论推得离用户越来越远。
+        -->
+        <FileChangeList
+          v-if="sessionFileChanges.length"
+          class="acu-session-filechanges"
+          :changes="sessionFileChanges"
+          :labels="fileChangesLabels"
+          :open-mode="fileChangesOpenMode"
+        />
       </div>
 
       <transition name="acu-fade">
@@ -71,7 +86,10 @@ import { ref, reactive, watch, computed, nextTick, onMounted, onBeforeUnmount } 
 import type {
   AskUserLabels,
   ChatMessage,
+  FileChange,
   FileChangeLabels,
+  FileChangeOpenMode,
+  FileChangePosition,
   PresetQuestion,
   FollowupConfig,
   ToolCallsConfig,
@@ -84,6 +102,8 @@ import type {
 import MessageBubble from '@/components/MessageBubble/MessageBubble.vue'
 import FollowupSuggestions from '@/components/FollowupSuggestions/FollowupSuggestions.vue'
 import MessageRail from '@/components/MessageRail/MessageRail.vue'
+import FileChangeList from '@/components/FileChangeList/FileChangeList.vue'
+import { collectFileChanges } from '@/utils/fileChange'
 
 interface PerMessageFollowup {
   items: PresetQuestion[]
@@ -107,6 +127,18 @@ const props = withDefaults(
     askUserLabels?: Partial<AskUserLabels>
     /** 文件改动清单的文案覆盖（哪些文件被改了那块） */
     fileChangesLabels?: FileChangeLabels
+    /**
+     * 文件改动清单挂在哪儿：
+     * - `session`：整段会话汇总，挂在消息列表末尾（默认）
+     * - `message`：每条 assistant 气泡各自一份
+     * @default 'session'
+     */
+    fileChangesPosition?: FileChangePosition
+    /**
+     * 点开文件时 diff 放哪儿
+     * @default 'drawer'
+     */
+    fileChangesOpenMode?: FileChangeOpenMode
     /** 思考块展示配置（默认正文超高后内部滚动） */
     thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
@@ -126,6 +158,8 @@ const props = withDefaults(
     planConfig: undefined,
     askUserLabels: undefined,
     fileChangesLabels: undefined,
+    fileChangesPosition: 'session',
+    fileChangesOpenMode: 'drawer',
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,
@@ -179,6 +213,36 @@ const lastAssistantId = computed<string | null>(() => {
     if (props.messages[i].role === 'assistant') return props.messages[i].id
   }
   return null
+})
+
+/**
+ * 整段会话改过的文件（按路径合并）。
+ *
+ * 合并口径与 `collectFileChanges` 一致：同一文件多轮改动计数相加、patch 拼接，
+ * 只留一行 —— 否则「改了 8 次的同一个文件」会在末尾列 8 遍。
+ * `position === 'message'` 时不算（各气泡自己渲染），省掉这轮遍历。
+ */
+const sessionFileChanges = computed<FileChange[]>(() => {
+  if (props.fileChangesPosition !== 'session') return []
+  const merged = new Map<string, FileChange>()
+  for (const message of props.messages) {
+    if (message.role !== 'assistant') continue
+    for (const change of collectFileChanges(message.toolCalls)) {
+      const key = change.path.replace(/\\/g, '/')
+      const prev = merged.get(key)
+      if (!prev) {
+        merged.set(key, { ...change })
+        continue
+      }
+      prev.added = (prev.added || 0) + (change.added || 0)
+      prev.removed = (prev.removed || 0) + (change.removed || 0)
+      // 只要出现过整文件写入，就保留「整体写入」的说明（比 edit 更接近用户理解）
+      if (change.kind === 'create') prev.kind = 'create'
+      else if (change.kind === 'write' && prev.kind !== 'create') prev.kind = 'write'
+      if (change.patch) prev.patch = prev.patch ? `${prev.patch}\n${change.patch}` : change.patch
+    }
+  }
+  return Array.from(merged.values())
 })
 
 // 该消息是否应该展示追问（暴露给模板）
@@ -452,7 +516,9 @@ function scrollToBottom(smooth = false) {
 function contentSignature(): string {
   const last = props.messages[props.messages.length - 1]
   if (!last) return ''
-  return `${props.messages.length}:${last.id}:${last.content.length}:${last.reasoning?.length ?? 0}`
+  // 工具调用数量也算进来：会话末尾的改动清单会在第一个写文件调用后突然出现，
+  // 不跟着滚的话它会被挤在视口下面，用户以为「没生效」
+  return `${props.messages.length}:${last.id}:${last.content.length}:${last.reasoning?.length ?? 0}:${last.toolCalls?.length ?? 0}`
 }
 
 watch(contentSignature, () => {
@@ -530,6 +596,14 @@ defineExpose({ scrollToBottom })
   // 首屏顶部给足 24px：assistant 不再是气泡之后，第一段回答直接顶在容器边上
   // 会显得局促，顶部那口气全靠这段 padding
   padding: var(--acu-space-6) 0 var(--acu-space-6);
+}
+
+// 会话末尾的文件改动汇总：一条发丝线把它和上面的对话分开，
+// 不加卡片描边 —— 它属于「这一整段会话的收尾」，不是一个独立容器
+.acu-session-filechanges {
+  margin-top: var(--acu-space-2);
+  padding-top: var(--acu-space-3);
+  border-top: 1px solid var(--acu-border);
 }
 
 .acu-scroll-btn {

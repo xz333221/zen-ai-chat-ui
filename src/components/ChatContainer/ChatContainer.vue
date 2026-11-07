@@ -36,6 +36,8 @@
         :message-rail-config="messageRailConfig"
         :ask-user-labels="questionLabels"
         :file-changes-labels="fileChangesLabels"
+        :file-changes-position="fileChangesPosition"
+        :file-changes-open-mode="fileChangesOpenMode"
         @retry="(m) => $emit('retry', m)"
         @followup-select="onFollowupSelect"
       />
@@ -97,6 +99,8 @@ import type {
   ToolCallsConfig,
   PlanConfig,
   FileChangeLabels,
+  FileChangePosition,
+  FileChangeOpenMode,
   ThinkingConfig,
   MessageActionsConfig,
   MessageMetaConfig,
@@ -267,10 +271,20 @@ const props = withDefaults(
      * 文件改动清单的文案覆盖。
      *
      * 写文件类工具调用（write_file / edit_file / Write / Edit …）会被解析成
-     * 「这一轮改了哪些文件」，在 assistant 气泡里列成可展开 diff 的清单。
+     * 「这次改了哪些文件」，默认**汇总挂在会话末尾**，点一行从右侧抽屉看 diff。
      * 走 i18n 的宿主在这里传自己的文案。
      */
     fileChangesLabels?: FileChangeLabels
+    /**
+     * 文件改动清单挂在哪儿：`session`（会话末尾汇总，默认）/ `message`（每条气泡各一份）。
+     * @default 'session'
+     */
+    fileChangesPosition?: FileChangePosition
+    /**
+     * 点开文件时 diff 放哪儿：`drawer`（右侧抽屉，默认）/ `inline`（就地展开）。
+     * @default 'drawer'
+     */
+    fileChangesOpenMode?: FileChangeOpenMode
     /**
      * 思考块展示配置。
      * 默认给思考正文加 320px 高度上限、超出后内部滚动（长思考不会把气泡撑得极高），
@@ -340,6 +354,8 @@ const props = withDefaults(
     backgroundTasks: true,
     backgroundTasksLabels: undefined,
     fileChangesLabels: undefined,
+    fileChangesPosition: 'session',
+    fileChangesOpenMode: 'drawer',
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,

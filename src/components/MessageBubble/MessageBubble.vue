@@ -79,12 +79,14 @@
           :ended-at="message.reasoningEndedAt"
         />
 
-        <!-- 文件改动清单（仅 assistant）：这一轮到底动了哪些文件，一眼看完 -->
+        <!-- 文件改动清单（仅 assistant）：这一轮到底动了哪些文件。
+             默认不在这里渲染 —— 由 MessageList 汇总到会话末尾 -->
         <FileChangeList
-          v-if="fileChanges.length"
+          v-if="showFileChanges && fileChanges.length"
           class="acu-bubble-filechanges"
           :changes="fileChanges"
           :labels="fileChangesLabels"
+          :open-mode="fileChangesOpenMode"
         />
 
         <!-- 工具调用（仅 assistant）：多个调用默认折叠，只展示最新一个 -->
@@ -167,6 +169,7 @@ import type {
   ChatMessage,
   ChatAttachment,
   FileChangeLabels,
+  FileChangeOpenMode,
   ToolCallsConfig,
   PlanConfig,
   ThinkingConfig,
@@ -199,6 +202,19 @@ const props = withDefaults(
     askUserLabels?: Partial<AskUserLabels>
     /** 文件改动清单的文案覆盖 */
     fileChangesLabels?: FileChangeLabels
+    /**
+     * 是否在气泡里渲染这一轮的文件改动清单。
+     *
+     * 默认位置已经移到**会话末尾**（由 MessageList 汇总整段会话），
+     * MessageList 会把这里关掉，避免同一个文件在对话流里出现两次。
+     * @default true
+     */
+    showFileChanges?: boolean
+    /**
+     * 点开文件时 diff 放哪儿（透传给 FileChangeList）
+     * @default 'drawer'
+     */
+    fileChangesOpenMode?: FileChangeOpenMode
     /** 思考块展示配置（高度上限 / 内部滚动 / 流式跟随） */
     thinkingConfig?: ThinkingConfig
     /** 气泡下方操作栏配置（复制 / 重新生成） */
@@ -217,6 +233,8 @@ const props = withDefaults(
     planConfig: undefined,
     askUserLabels: undefined,
     fileChangesLabels: undefined,
+    showFileChanges: true,
+    fileChangesOpenMode: 'drawer',
     thinkingConfig: undefined,
     actionsConfig: undefined,
     messageMetaConfig: undefined,

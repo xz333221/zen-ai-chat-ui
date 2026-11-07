@@ -935,7 +935,8 @@ const presetQuestions: PresetQuestion[] = [
   { id: 'q7', label: '超长思考滚动', prompt: '帮我分析一下这段超长思考过程' },
   { id: 'q8', label: '多轮对话（侧边条）', prompt: '一次性铺出多轮对话，用来演示左侧那列消息条' },
   { id: 'q9', label: '向用户提问（ask_user）', prompt: '演示提问面板：单选 / 多选 / 自由输入' },
-  { id: 'q10', label: '计划工具（update_plan）', prompt: '帮我把这个仓库的计划列出来' }
+  { id: 'q10', label: '计划工具（update_plan）', prompt: '帮我把这个仓库的计划列出来' },
+  { id: 'q11', label: '文件改动（末尾清单 + 抽屉）', prompt: '改一下这几个文件的样式' }
 ]
 
 // —— 提问面板演示 ——
@@ -1340,6 +1341,8 @@ async function onSend({ text, files }: { text: string; files: SelectedFile[] }) 
     await runLongThinkingDemo(assistant)
   } else if (text === '帮我把这个仓库的计划列出来') {
     await runPlanToolDemo(assistant)
+  } else if (text === '改一下这几个文件的样式') {
+    await runFileChangeDemo(assistant)
   } else {
     await runMockStream(assistant, text)
   }
@@ -1543,6 +1546,75 @@ async function runToolCallDemo(msg: ChatMessage) {
     finishWithUsage(msg)
   } catch (e) {
     settle(msg, e)
+  } finally {
+    busy.value = false
+  }
+}
+
+// —— 演示：文件改动（会话末尾汇总清单 + 右侧抽屉看 diff） ——
+async function runFileChangeDemo(msg: ChatMessage) {
+  busy.value = true
+  abortRequested = false
+  try {
+    await sleep(300)
+    msg.status = 'streaming'
+
+    const calls = [
+      {
+        name: 'edit_file',
+        args: {
+          path: 'src/utils/format.ts',
+          old_string: 'export function formatClock(ts: number): string {\n  const d = new Date(ts)\n  return d.toLocaleTimeString()\n}',
+          new_string:
+            'export function formatClock(ts: number): string {\n  const d = new Date(ts)\n  const pad = (n: number) => String(n).padStart(2, \'0\')\n  return `${pad(d.getHours())}:${pad(d.getMinutes())}`\n}'
+        }
+      },
+      {
+        name: 'edit_file',
+        args: {
+          path: 'src/components/FileChangeList/FileChangeList.vue',
+          old_string: '      <FileChangeList\n        :changes="changes"\n        :labels="labels"\n      />',
+          new_string:
+            '      <FileChangeList\n        :changes="changes"\n        :labels="labels"\n        open-mode="drawer"\n      />'
+        }
+      },
+      {
+        name: 'write_file',
+        args: {
+          path: 'src/styles/prose.css',
+          content:
+            '.acu-diff-row {\n  display: flex;\n  height: 20px;\n  line-height: 20px;\n  font-family: var(--acu-font-mono);\n}\n\n.acu-diff-row.is-add {\n  background: var(--acu-diff-add-bg);\n}\n\n.acu-diff-row.is-del {\n  background: var(--acu-diff-del-bg);\n}'
+        }
+      }
+    ]
+
+    msg.toolCalls = calls.map((call) => ({
+      id: uid('tc'),
+      name: call.name,
+      argsPreview: (call.args as { path: string }).path,
+      arguments: JSON.stringify(call.args),
+      status: 'running' as const
+    }))
+
+    for (let i = 0; i < msg.toolCalls.length; i += 1) {
+      await sleep(320)
+      const tc = msg.toolCalls[i]
+      tc.status = 'done'
+      tc.result = 'ok'
+    }
+
+    await sleep(240)
+    const content =
+      '改完了：**3 个文件**，改动汇总在会话末尾，点任意一行从右侧看完整 diff。\n\n' +
+      '- `format.ts`：时间格式改成 `HH:mm`，补齐两位数\n' +
+      '- `FileChangeList.vue`：默认走抽屉\n' +
+      '- `prose.css`：新增 diff 行样式'
+    for (const ch of content) {
+      streaming.append(msg, { type: 'content', delta: ch })
+      await sleep(6)
+    }
+
+    finishWithUsage(msg)
   } finally {
     busy.value = false
   }

@@ -14,6 +14,8 @@ export { default as ToolCallBlock } from './components/ToolCallBlock/ToolCallBlo
 export { default as ToolCallGroup } from './components/ToolCallGroup/ToolCallGroup.vue'
 export { default as PlanBlock } from './components/PlanBlock/PlanBlock.vue'
 export { default as FileChangeList } from './components/FileChangeList/FileChangeList.vue'
+export { default as FileChangeDrawer } from './components/FileChangeDrawer/FileChangeDrawer.vue'
+export { default as FileChangeDiff } from './components/FileChangeDiff/FileChangeDiff.vue'
 export { default as MessageActions } from './components/MessageActions/MessageActions.vue'
 export { default as WelcomeScreen } from './components/WelcomeScreen/WelcomeScreen.vue'
 export { default as ChatInput } from './components/ChatInput/ChatInput.vue'
@@ -88,6 +90,18 @@ export {
 } from './utils/fileChange'
 export type { ParsedFileChange } from './utils/fileChange'
 
+// diff 解析：把 FileChange.patch 拆成「带行号的行」，宿主想自己画 diff 时用
+export {
+  parseUnifiedDiff,
+  isCodeRow,
+  diffLanguage,
+  splitFilePath,
+  escapeHtml
+} from './utils/diff'
+export type { DiffRow, DiffRowType } from './utils/diff'
+// diff 高亮：与 Markdown 代码块共用同一个 shiki 单例，返回「每行一段 HTML」
+export { highlightDiff } from './composables/useDiffHighlight'
+
 // 内置 AI 品牌头像（由 scripts/build-avatars.mjs 生成）
 export {
   AI_AVATARS,
@@ -120,6 +134,8 @@ export type {
   FileChange,
   FileChangeKind,
   FileChangeLabels,
+  FileChangeOpenMode,
+  FileChangePosition,
   ToolCallsConfig,
   PlanStep,
   PlanStepStatus,
