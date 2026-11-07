@@ -17,7 +17,9 @@
         v-if="open"
         class="acu-root acu-drawer-scrim"
         :data-theme="theme"
-        @click.self="close"
+        @click.stop="onScrimClick"
+        @mousedown.stop
+        @mouseup.stop
       >
         <aside
           ref="panelRef"
@@ -108,11 +110,24 @@ function close() {
   emit('update:open', false)
 }
 
+/** 点遮罩（抽屉外的空白）关闭；抽屉内部的点击只做「不外传」 */
+function onScrimClick(event: MouseEvent) {
+  if (event.target === event.currentTarget) close()
+}
+
+/**
+ * Esc 关闭。
+ *
+ * 为什么用 window 的**捕获**阶段 + stopPropagation：
+ * 宿主常有「Esc 关掉整个对话面板 / 弹层」的全局热键（zen-gitsync 的悬浮 dock 就是），
+ * 冒泡阶段注册的话它会先于我们跑 —— 用户按一下 Esc，抽屉和宿主面板一起消失。
+ * 捕获阶段拿到事件后拦下来，这次 Esc 就只归抽屉。
+ */
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    close()
-  }
+  if (event.key !== 'Escape') return
+  event.preventDefault()
+  event.stopPropagation()
+  close()
 }
 
 watch(
@@ -123,11 +138,11 @@ watch(
       lastFocused = document.activeElement as HTMLElement | null
       bodyOverflow = document.body.style.overflow
       document.body.style.overflow = 'hidden'
-      window.addEventListener('keydown', onKeydown)
+      window.addEventListener('keydown', onKeydown, true)
       nextTick(() => closeRef.value?.focus())
     } else {
       document.body.style.overflow = bodyOverflow
-      window.removeEventListener('keydown', onKeydown)
+      window.removeEventListener('keydown', onKeydown, true)
       lastFocused?.focus?.()
       lastFocused = null
     }
@@ -136,7 +151,7 @@ watch(
 
 onBeforeUnmount(() => {
   if (typeof document === 'undefined') return
-  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('keydown', onKeydown, true)
   // 卸载时抽屉还开着（例如切换会话把整块清掉）也要把滚动条还回去
   if (props.open) document.body.style.overflow = bodyOverflow
 })
