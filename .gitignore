@@ -29,6 +29,8 @@ pnpm-debug.log*
 # Temp
 *.tgz
 .playwright-cli/
+# 本地验证脚本 / 截图
+tmp/
 
 # Vite 打包 vite.config.ts 时生成的临时文件（dev server 被强杀时不会自动清理）
 vite.config.ts.timestamp-*.mjs

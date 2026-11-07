@@ -11,7 +11,6 @@
   <div
     v-if="bars.length > 1"
     class="acu-rail"
-    :class="{ 'is-hovering': hovering }"
     :style="{ '--acu-rail-idle': idleOpacity }"
     role="navigation"
     aria-label="对话轮次导航"
@@ -322,16 +321,6 @@ defineExpose({ hovering })
   align-items: flex-start;
   padding: var(--acu-space-1-5);
   border-radius: var(--acu-radius);
-  opacity: var(--acu-rail-idle, 0.3);
-  transition: opacity var(--acu-duration) var(--acu-easing);
-
-  // .is-hovering：离开后有 200ms 宽限（见 onRailLeave），这段时间里
-  // CSS 的 :hover 已经失效，靠这个类把不透明度也一并留住，免得"浮层还在、条却先淡了"
-  &:hover,
-  &:focus-within,
-  &.is-hovering {
-    opacity: 1;
-  }
 }
 
 .acu-rail-stack {
@@ -366,22 +355,38 @@ defineExpose({ hovering })
   display: block;
   border-radius: var(--acu-radius-full);
   background: var(--acu-text-muted);
-  transition: background-color var(--acu-duration) var(--acu-easing);
+  // 淡出的是「每一根条」，不是整组：悬停只让指针下那根显形，
+  // 其余保持静止态，条串的节奏不被一次性点亮（2026-11-07 用户反馈
+  // 「只高亮 hover 上去的当前横条，而不是所有的」）
+  opacity: var(--acu-rail-idle, 0.3);
+  transition:
+    background-color var(--acu-duration) var(--acu-easing),
+    opacity var(--acu-duration) var(--acu-easing);
 
   .acu-rail-bar:hover &,
   .acu-rail-bar.is-hot & {
     background: var(--acu-text-secondary);
+    opacity: 1;
   }
 
   .acu-rail-bar.is-active & {
     // 只换颜色、不动宽度：宽度是数据（这一轮的长度）的编码，
-    // 再叠一个 scaleX 会让「这轮更长」这个语义失真
+    // 再叠一个 scaleX 会让「这轮更长」这个语义失真。
+    // 当前轮常驻满不透明：它是「读到哪」的定位点，淡了就失去参照
     background: var(--acu-primary);
+    opacity: 1;
   }
 
   .acu-rail-bar.is-streaming & {
     // ease-in-out 而非全局 --acu-easing：往返关键帧需要对称曲线才是「呼吸」
     animation: acu-rail-pulse 1.2s ease-in-out infinite;
+  }
+
+  // 呼吸动画也写 opacity，会盖掉上面的 1；指针停在这根上时先手停掉，
+  // 否则「hover 了却还在闪」，看着像没选中
+  .acu-rail-bar.is-streaming:hover &,
+  .acu-rail-bar.is-streaming.is-hot & {
+    animation: none;
   }
 }
 

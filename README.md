@@ -752,7 +752,7 @@ const attachments: ChatAttachment[] = files.map(f => ({
 | `barHeight`     | `number`              | `3`         | 条高（px） |
 | `maxGap`        | `number`              | `10`        | 条间最大间距（px）。轮次多时自动压缩（下限 4px） |
 | `maxHeight`     | `number`              | `320`       | 条组最大高度（px），超出后条组内部滚动并把当前条带回视野 |
-| `idleOpacity`   | `number`              | `0.3`       | 静止态整体透明度；悬停或键盘聚焦时整组显形 |
+| `idleOpacity`   | `number`              | `0.3`       | 静止态每根条的透明度；悬停只点亮当前那根，当前轮常驻不透明 |
 | `showTooltip`   | `boolean`             | `true`      | 悬停单根条是否显示浮层 |
 | `clickToScroll` | `boolean`             | `true`      | 点击条是否滚动到该轮提问 |
 

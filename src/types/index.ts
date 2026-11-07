@@ -307,7 +307,12 @@ export interface MessageRailConfig {
   maxGap?: number
   /** 条组最大高度（px），超出后条组内部滚动并自动把当前条带回视野 @default 320 */
   maxHeight?: number
-  /** 静止态整体透明度；悬停或键盘聚焦时整组显形 @default 0.3 */
+  /**
+   * 静止态每根条的透明度。
+   * 悬停/键盘聚焦只让**指针下那一根**显形，其余保持静止态；当前轮（视口里
+   * 正在读的那轮）常驻满不透明，作为定位参照
+   * @default 0.3
+   */
   idleOpacity?: number
   /** 悬停单根条时是否显示浮层（角色 + 内容摘要） @default true */
   showTooltip?: boolean
