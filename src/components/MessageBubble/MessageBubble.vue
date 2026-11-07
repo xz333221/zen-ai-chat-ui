@@ -79,16 +79,6 @@
           :ended-at="message.reasoningEndedAt"
         />
 
-        <!-- 文件改动清单（仅 assistant）：这一轮到底动了哪些文件。
-             默认不在这里渲染 —— 由 MessageList 汇总到会话末尾 -->
-        <FileChangeList
-          v-if="showFileChanges && fileChanges.length"
-          class="acu-bubble-filechanges"
-          :changes="fileChanges"
-          :labels="fileChangesLabels"
-          :open-mode="fileChangesOpenMode"
-        />
-
         <!-- 工具调用（仅 assistant）：多个调用默认折叠，只展示最新一个 -->
         <div v-if="hasToolCalls" class="acu-bubble-toolcalls">
           <ToolCallGroup
@@ -124,6 +114,20 @@
           <span>{{ message.error || '生成失败，请重试' }}</span>
           <button type="button" class="acu-retry-btn" @click="$emit('retry', message)">重试</button>
         </div>
+
+        <!--
+          文件改动清单（仅 assistant）：这一轮到底动了哪些文件。
+          位置在正文之后 —— 「这一轮说完的地方」，用户读完回答顺势看到结论；
+          标题行可折叠，长清单内部滚动（见 FileChangeList）。
+          同一轮的清单不会重复出现在会话末尾（MessageList 在 message 模式下不再汇总）。
+        -->
+        <FileChangeList
+          v-if="showFileChanges && fileChanges.length"
+          class="acu-bubble-filechanges"
+          :changes="fileChanges"
+          :labels="fileChangesLabels"
+          :open-mode="fileChangesOpenMode"
+        />
       </div>
 
       <!-- 气泡下方：操作栏 + 元信息（耗时 / token / 时间） -->
@@ -205,8 +209,8 @@ const props = withDefaults(
     /**
      * 是否在气泡里渲染这一轮的文件改动清单。
      *
-     * 默认位置已经移到**会话末尾**（由 MessageList 汇总整段会话），
-     * MessageList 会把这里关掉，避免同一个文件在对话流里出现两次。
+     * 默认位置是**每条回复末尾**（改完这一轮就在这儿交代），
+     * MessageList 只在 `fileChangesPosition="session"` 时关掉这里，改由末尾汇总。
      * @default true
      */
     showFileChanges?: boolean
@@ -546,6 +550,14 @@ const showRetryAction = computed(() => {
 // 工具调用区
 .acu-bubble-toolcalls {
   margin-bottom: var(--acu-space-2);
+}
+
+// 本轮文件改动：挂在正文之后，用一条发丝线把它和回答分开 ——
+// 它是「这一轮的结论」，不是正文的续段。不做圆角描边卡片。
+.acu-bubble-filechanges {
+  margin-top: var(--acu-space-3);
+  padding-top: var(--acu-space-2);
+  border-top: 1px solid var(--acu-border);
 }
 
 // 附件区

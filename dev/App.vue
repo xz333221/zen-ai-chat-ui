@@ -936,7 +936,7 @@ const presetQuestions: PresetQuestion[] = [
   { id: 'q8', label: '多轮对话（侧边条）', prompt: '一次性铺出多轮对话，用来演示左侧那列消息条' },
   { id: 'q9', label: '向用户提问（ask_user）', prompt: '演示提问面板：单选 / 多选 / 自由输入' },
   { id: 'q10', label: '计划工具（update_plan）', prompt: '帮我把这个仓库的计划列出来' },
-  { id: 'q11', label: '文件改动（末尾清单 + 抽屉）', prompt: '改一下这几个文件的样式' }
+  { id: 'q11', label: '文件改动（随轮次 + 折叠）', prompt: '改一下这几个文件的样式' }
 ]
 
 // —— 提问面板演示 ——
@@ -1551,7 +1551,7 @@ async function runToolCallDemo(msg: ChatMessage) {
   }
 }
 
-// —— 演示：文件改动（会话末尾汇总清单 + 右侧抽屉看 diff） ——
+// —— 演示：文件改动（本轮清单挂在回复末尾 + 可折叠 + 右侧抽屉看 diff） ——
 async function runFileChangeDemo(msg: ChatMessage) {
   busy.value = true
   abortRequested = false
@@ -1605,7 +1605,7 @@ async function runFileChangeDemo(msg: ChatMessage) {
 
     await sleep(240)
     const content =
-      '改完了：**3 个文件**，改动汇总在会话末尾，点任意一行从右侧看完整 diff。\n\n' +
+      '改完了：**3 个文件**，清单跟在这一轮末尾（标题行可点开/收起），点任意一行从右侧看完整 diff。\n\n' +
       '- `format.ts`：时间格式改成 `HH:mm`，补齐两位数\n' +
       '- `FileChangeList.vue`：默认走抽屉\n' +
       '- `prose.css`：新增 diff 行样式'

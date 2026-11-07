@@ -271,13 +271,14 @@ const props = withDefaults(
      * 文件改动清单的文案覆盖。
      *
      * 写文件类工具调用（write_file / edit_file / Write / Edit …）会被解析成
-     * 「这次改了哪些文件」，默认**汇总挂在会话末尾**，点一行从右侧抽屉看 diff。
-     * 走 i18n 的宿主在这里传自己的文案。
+     * 「这一轮改了哪些文件」，默认**挂在每条回复末尾**、标题行可折叠，
+     * 点一行从右侧抽屉看 diff。走 i18n 的宿主在这里传自己的文案。
      */
     fileChangesLabels?: FileChangeLabels
     /**
-     * 文件改动清单挂在哪儿：`session`（会话末尾汇总，默认）/ `message`（每条气泡各一份）。
-     * @default 'session'
+     * 文件改动清单挂在哪儿：`message`（每条回复末尾各一份，默认）/
+     * `session`（整段会话汇总到末尾）。两种位置都可折叠。
+     * @default 'message'
      */
     fileChangesPosition?: FileChangePosition
     /**
@@ -354,7 +355,7 @@ const props = withDefaults(
     backgroundTasks: true,
     backgroundTasksLabels: undefined,
     fileChangesLabels: undefined,
-    fileChangesPosition: 'session',
+    fileChangesPosition: 'message',
     fileChangesOpenMode: 'drawer',
     thinkingConfig: undefined,
     actionsConfig: undefined,

@@ -13,7 +13,7 @@
 - **思考过程**：独立的可折叠「思考中」区块，流式时展开 + 动画，完成后折叠；正文超高时内部滚动，不会把气泡撑得老长（滚动条默认悬停才淡入，不干扰阅读）。标题右侧带**思考段耗时**，流式实时跳、折叠也看得见
 - **工具调用**：默认把同一条消息里的多个调用折叠成一组、只展示最新一个，点击可展开全部
 - **任务计划**：计划类工具调用（`update_plan` / `TodoWrite` …）自动渲染成带勾选态的清单（三态 + 进度条 + 说明），并在工具组折叠时保持常驻——折叠只藏别的调用，不藏当前计划
-- **文件改动**：写文件类工具调用（`write_file` / `edit_file` / `Write` / `Edit` / `MultiEdit` …）自动解析出「这一轮改了哪些文件」，在气泡里列成清单（文件名 + 增删行数），点开看 unified diff —— 数据来自工具调用参数，宿主不用额外存字段，流式与历史回放同一口径
+- **文件改动**：写文件类工具调用（`write_file` / `edit_file` / `Write` / `Edit` / `MultiEdit` …）自动解析出「这一轮改了哪些文件」，在该轮回复末尾列成清单（文件名 + 增删行数，标题行可折叠），点开看 unified diff —— 数据来自工具调用参数，宿主不用额外存字段，流式与历史回放同一口径
 - **消息操作栏**：气泡下方内置纯图标「复制」（提问 + 回答）与「重新生成」（回答），悬停该条消息才显示，复制带绿色对勾 + 浮层提示
 - **运行元信息**：可选在气泡下方展示回答耗时、首字延迟、token 用量（`1.2s · 510ms · ↑26 ↓571`），耗时由 `useStreaming` 自动计时；与操作栏同步悬停显示（可设常显）
 - **Markdown 渲染**：基于 markdown-it + Shiki，双主题代码高亮、表格、引用、任务列表，代码块带语言标签与一键复制。高亮结果按「语言 + 源码」缓存，且**流式期间不重复高亮"还在写、尚未闭合"的那个代码块**（流结束再补一次）—— 正文是每来一段增量就整篇重渲的，没有这两层保护时一次长回答能把主线程堵住好几秒
@@ -621,7 +621,7 @@ const resolvedTheme = useResolvedTheme(() => cfg.theme)
 | `backgroundTasks`   | `boolean`                  | `true`     | 是否把后台进程收进输入框上方的「后台任务条」（详见下方） |
 | `backgroundTasksLabels` | `BackgroundTasksLabels` | -        | 后台任务条的文案覆盖（标题 / 单位 / 展开 / 收起） |
 | `fileChangesLabels` | `FileChangeLabels`         | -          | 文件改动清单的文案覆盖（详见下方） |
-| `fileChangesPosition` | `'session' \| 'message'` | `'session'` | 文件改动清单挂在哪：会话末尾汇总 / 每条气泡一份（详见下方） |
+| `fileChangesPosition` | `'message' \| 'session'` | `'message'` | 文件改动清单挂在哪：每条回复末尾各一份 / 整段会话汇总（详见下方） |
 | `fileChangesOpenMode` | `'drawer' \| 'inline'`   | `'drawer'`  | 点开文件时 diff 放在右侧抽屉 / 就地展开（详见下方） |
 | `thinkingConfig`    | `ThinkingConfig`           | -          | 思考块展示配置（详见下方） |
 | `actionsConfig`     | `MessageActionsConfig`     | -          | 气泡下方操作栏配置（详见下方） |
@@ -927,18 +927,19 @@ assistant.toolCalls.push({
 ## 文件改动（FileChangeList）
 
 对话里最要紧的一件事是「它到底改了哪些文件」。工具调用是过程，这条清单是结果，
-默认**汇总挂在会话末尾**（整段对话改过的文件按路径合并成一份）：
+默认**跟着每一轮回复走 —— 挂在该条 assistant 消息的末尾**（这一轮说完的地方）：
 
 ```
-📄 文件改动  2 个文件                              +18 -4
+📄 文件改动  2 个文件                              +18 -4  ⌃
   src/ui/AgentView.vue                            +12 -3  ›
   src/cli/paste.js                                 +6 -1  ›
 ```
 
+- **标题行可折叠**：收起后仍显示「几个文件 / +多少 −多少」，逐文件的行让出来；展开时清单最高 320px，内部滚动 —— 一轮改了八十个文件也不会把对话顶出屏幕。
 - **点一行开右侧抽屉**：清单只回答「改了哪些」，diff 放在右侧抽屉里看（行号 + 增删底色 +
   Shiki 语法高亮），不把几十份 diff 铺进对话流。抽屉支持 Esc / 点遮罩关闭，打开时锁背景滚动。
-- **位置与打开方式可配**：`fileChangesPosition="message"` 退回「每条气泡一份」，
-  `fileChangesOpenMode="inline"` 退回就地展开（旧行为）。
+- **位置与打开方式可配**：`fileChangesPosition="session"` 改为整段会话汇总到末尾（同一路径跨轮合并），
+  `fileChangesOpenMode="inline"` 退回就地展开（旧行为）。两种位置都带折叠。
 - **不用宿主适配**：写文件类工具的参数里本来就有路径与新旧文本（`write_file`/`edit_file` 的 `path` + `content`/`old_string`，Claude Code 的 `Write`/`Edit`/`MultiEdit` 的 `file_path` + `edits[]`，`str_replace_editor` 的 `command` + `file_text`…），库在 `utils/fileChange.ts` 里统一归一，按文件合并（同一文件改多次 → 计数相加）。
 - **流式与回放同一套口径**：清单是从工具调用参数算出来的，不是服务端额外下发的字段，所以刷新后重看历史一样有。
 - **整文件写入没有前文可比**：按「整体写入」标记 + 前 80 行预览，别让人误读成"全是新增"。

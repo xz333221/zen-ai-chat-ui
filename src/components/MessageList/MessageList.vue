@@ -39,8 +39,8 @@
 
         <!--
           会话级文件改动：整段对话改过的文件汇总成一份，挂在消息末尾。
-          放在这里而不是每条气泡里 —— 多轮下来同一个文件会被反复改，
-          逐轮铺一遍既重复又把结论推得离用户越来越远。
+          默认不走这里 —— 清单跟着每条回复走（见 MessageBubble）；
+          传 `fileChangesPosition="session"` 时才在末尾再汇总一份。
         -->
         <FileChangeList
           v-if="sessionFileChanges.length"
@@ -129,9 +129,9 @@ const props = withDefaults(
     fileChangesLabels?: FileChangeLabels
     /**
      * 文件改动清单挂在哪儿：
-     * - `session`：整段会话汇总，挂在消息列表末尾（默认）
-     * - `message`：每条 assistant 气泡各自一份
-     * @default 'session'
+     * - `message`：每条 assistant 气泡末尾各自一份（默认）—— 改动跟着那一轮走
+     * - `session`：整段会话汇总，挂在消息列表末尾
+     * @default 'message'
      */
     fileChangesPosition?: FileChangePosition
     /**
@@ -158,7 +158,7 @@ const props = withDefaults(
     planConfig: undefined,
     askUserLabels: undefined,
     fileChangesLabels: undefined,
-    fileChangesPosition: 'session',
+    fileChangesPosition: 'message',
     fileChangesOpenMode: 'drawer',
     thinkingConfig: undefined,
     actionsConfig: undefined,

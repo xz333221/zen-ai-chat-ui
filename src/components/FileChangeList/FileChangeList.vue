@@ -7,14 +7,28 @@
         用户想知道的是「结果改了啥」，这个信息不该藏在折叠里。
       - 每个文件一行、带增删行数 —— 一眼扫完，不用逐条展开 JSON。
 
-    默认挂在**消息列表末尾**（整个会话汇总一份），点击某一行从右侧滑出抽屉看 diff。
-    清单本身只负责「有哪些文件」，不把 diff 铺在对话流里（十几个文件会拉爆滚动长度）。
+    默认挂在**每一条 assistant 回复的末尾**（这一轮改了什么，就在这一轮说完的地方交代），
+    标题行可折叠；整段会话汇总（`fileChangesPosition="session"`）仍然支持。
+    点击某一行从右侧滑出抽屉看 diff。
+
+    清单本身只负责「有哪些文件」，不把 diff 铺在对话流里（十几个文件会拉爆滚动长度）；
+    展开时也有 320px 高度上限，八十个文件不会把这一轮推到屏幕外。
 
     数据来自各条工具调用的参数（`collectFileChanges`），所以流式与历史回放同一口径。
     样式走平铺：没有圆角描边卡片，行 hover 才出底色。
   -->
   <div v-if="changes.length" class="acu-filechanges">
-    <div class="acu-filechanges-head">
+    <!--
+      标题行同时是「折叠开关」：收起后仍然保留「几个文件 / +多少 −多少」，
+      信息不丢，只是把逐文件的行让出来。整行都是命中区（不是只有那个小箭头）。
+    -->
+    <button
+      type="button"
+      class="acu-filechanges-head"
+      :aria-expanded="!collapsed"
+      :title="collapsed ? text.expand : text.collapse"
+      @click="collapsed = !collapsed"
+    >
       <span class="acu-filechanges-icon">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -23,14 +37,20 @@
       </span>
       <span class="acu-filechanges-title">{{ text.title }}</span>
       <span class="acu-filechanges-count">{{ changes.length }} {{ text.files }}</span>
-      <!-- 只有 1 个文件时不重复一遍合计：下面那行已经写着同样的 +3 −2 -->
-      <span v-if="changes.length > 1" class="acu-filechanges-total">
+      <span class="acu-filechanges-total">
         <span class="acu-filechanges-added" :title="text.added">+{{ totalAdded }}</span>
         <span v-if="totalRemoved" class="acu-filechanges-removed" :title="text.removed">−{{ totalRemoved }}</span>
       </span>
-    </div>
+      <svg
+        class="acu-filechanges-toggle"
+        :class="{ 'is-collapsed': collapsed }"
+        viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+      >
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </button>
 
-    <div class="acu-filechanges-list">
+    <div v-show="!collapsed" class="acu-filechanges-list">
       <div v-for="(change, index) in changes" :key="`${change.path}-${index}`" class="acu-filechanges-item">
         <button
           type="button"
@@ -102,8 +122,16 @@ const props = withDefaults(
      * @default 'drawer'
      */
     openMode?: FileChangeOpenMode
+    /**
+     * 初始是否收起文件清单（标题行常显，点一下展开）。
+     *
+     * 默认展开：改了两个文件时没必要多一次点击；清单本身有 320px 上限，
+     * 八十个文件也不会把对话流撑爆。长清单想一进来就干净，传 `true`。
+     * @default false
+     */
+    defaultCollapsed?: boolean
   }>(),
-  { labels: undefined, openMode: 'drawer' }
+  { labels: undefined, openMode: 'drawer', defaultCollapsed: false }
 )
 
 const text = computed(() => ({
@@ -126,6 +154,14 @@ const totalRemoved = computed(() =>
 
 /** 展开状态按「路径 + 序号」记：同一文件出现两次（合并前）也不会互相串 */
 const openKeys = ref<Set<string>>(new Set())
+
+/**
+ * 清单整体的收起状态。
+ *
+ * 只在组件创建时读一次 `defaultCollapsed`，之后由用户点击接管 ——
+ * 跟着 prop 双向同步会让「用户在流式过程中手动收起」被下一次 render 弹回去。
+ */
+const collapsed = ref(props.defaultCollapsed)
 
 /** 抽屉状态：抽屉本身没有「列表」，只认当前这一份改动 */
 const drawerOpen = ref(false)
@@ -182,9 +218,23 @@ function isWholeWrite(change: FileChange): boolean {
   display: flex;
   align-items: center;
   gap: var(--acu-space-1-5);
-  padding: 0 var(--acu-space-1);
+  width: 100%;
+  // 标题行整体可点（折叠开关）：去掉 button 的默认框与底色，只保留 hover 反馈
+  padding: 2px var(--acu-space-1);
+  border: none;
+  border-radius: var(--acu-radius-xs);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
   font-size: var(--acu-font-size-2xs);
+  text-align: left;
   color: var(--acu-text-muted);
+  transition: background var(--acu-duration-fast) var(--acu-easing);
+  @include acu-focus-ring;
+
+  &:hover {
+    background: var(--acu-surface-hover);
+  }
 }
 
 .acu-filechanges-icon {
@@ -220,6 +270,12 @@ function isWholeWrite(change: FileChange): boolean {
 
 .acu-filechanges-list {
   margin-top: 2px;
+  // 展开也不放任它无限长：80 个文件 × 26px 会把整轮对话顶出屏幕，
+  // 内部滚动 + 标题行折叠两个出口，看全和看得下去都不牺牲
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  @include acu-scrollbar(5px);
 }
 
 .acu-filechanges-row {
@@ -294,6 +350,19 @@ function isWholeWrite(change: FileChange): boolean {
   // 抽屉模式：箭头指向右侧，读作「打开」
   &.is-link {
     transform: rotate(-90deg);
+  }
+}
+
+// 标题行的折叠箭头：展开时朝上（点了收起），收起时朝下（点了展开）。
+// 和每一行末尾那颗「进抽屉」的箭头分开命名，别让两个语义共用一个 class。
+.acu-filechanges-toggle {
+  flex-shrink: 0;
+  color: var(--acu-text-muted);
+  transform: rotate(180deg);
+  transition: transform var(--acu-duration-fast) var(--acu-easing);
+
+  &.is-collapsed {
+    transform: rotate(0deg);
   }
 }
 

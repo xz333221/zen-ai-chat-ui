@@ -120,8 +120,8 @@ export type FileChangeOpenMode = 'drawer' | 'inline'
 /**
  * 文件改动清单挂在哪儿。
  *
- * - `session`：整段会话的改动汇总，挂在消息列表末尾（默认）
- * - `message`：每一条 assistant 消息各自一份（旧行为）
+ * - `message`：每一条 assistant 消息末尾各自一份（默认）—— 改动跟着那一轮走
+ * - `session`：整段会话的改动汇总，挂在消息列表末尾
  */
 export type FileChangePosition = 'session' | 'message'
 
