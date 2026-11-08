@@ -82,5 +82,17 @@ check('路径拆分', splitFilePath('D:\\repo\\src\\a.ts'), { dir: 'D:/repo/src/
   check('未知语言降级', await highlightDiff('whatever', 'not-a-real-lang'), null)
 }
 
+// ⑦ .vue 的 hunk 常常只有 `<script>` 里的几行、外面没有标签：vue grammar 会当成纯文本
+{
+  const bare = await highlightDiff('const a: string = "x" // hi', 'vue')
+  const colors = new Set(
+    [...(bare || []).join('').matchAll(/--shiki-light:(#[0-9A-Fa-f]{6})/g)].map((m) => m[1])
+  )
+  check('.vue 裸脚本片段要有着色', colors.size >= 3, true)
+
+  const sfc = await highlightDiff('<template><div class="a">{{ x }}</div></template>', 'vue')
+  check('.vue 带标签仍走 vue', (sfc || []).join('').includes('--shiki-light'), true)
+}
+
 console.log(`\n${fail === 0 ? '全部通过' : `${fail} 条断言失败`}`)
 process.exit(fail === 0 ? 0 : 1)

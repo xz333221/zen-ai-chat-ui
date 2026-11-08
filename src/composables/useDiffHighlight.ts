@@ -32,12 +32,30 @@ function fontStyleCss(style: number | undefined): string {
 }
 
 /**
+ * `.vue` / `.svelte` 是「容器语法」：shiki 的 grammar 只认带标签的整段单文件组件。
+ * 而 diff 的一个 hunk 经常只有 `<script>` 里的几行（外面没有 script / template 标签），
+ * vue grammar 会把它整段判成纯文本 —— 结果就是「看起来完全没高亮」，实测 78 个 token 里
+ * 76 个拿到默认前景色。片段里看不到标签时，按里面的方言（TypeScript）高亮。
+ */
+const CONTAINER_LANGS = new Set(['vue', 'svelte'])
+
+/** 出现这些标签才算真的 SFC / 模板片段，交给 vue|svelte 语法 */
+const MARKUP_HINT_RE =
+  /<\/?(?:template|script|style|div|span|section|article|aside|nav|header|footer|main|ul|ol|li|p|a|button|input|img|svg|path|slot|component|textarea|select|table|tbody|tr|td|th|h[1-6])\b/i
+
+function resolveDiffLang(code: string, lang: string): string {
+  if (!CONTAINER_LANGS.has(lang)) return lang
+  return MARKUP_HINT_RE.test(code) ? lang : 'typescript'
+}
+
+/**
  * 高亮一段代码，返回与行数一一对应的 HTML 数组；失败 / 语言不可用返回 null，
  * 调用方退回纯文本。
  */
 export async function highlightDiff(code: string, lang: string): Promise<string[] | null> {
   if (!code || !lang) return null
-  const key = `${lang}\u0000${code}`
+  const target = resolveDiffLang(code, lang)
+  const key = `${target}\u0000${code}`
   const cached = cache.get(key)
   if (cached) return cached
 
@@ -45,11 +63,11 @@ export async function highlightDiff(code: string, lang: string): Promise<string[
   if (!highlighter) return null
 
   try {
-    if (!highlighter.getLoadedLanguages().includes(lang)) {
-      await highlighter.loadLanguage(lang as BundledLanguage)
+    if (!highlighter.getLoadedLanguages().includes(target)) {
+      await highlighter.loadLanguage(target as BundledLanguage)
     }
     const tokenLines = highlighter.codeToTokensWithThemes(code, {
-      lang: lang as BundledLanguage,
+      lang: target as BundledLanguage,
       themes: { light: 'github-light', dark: 'github-dark' }
     })
     const lines = tokenLines.map((line) =>
