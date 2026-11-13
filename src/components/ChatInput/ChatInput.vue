@@ -366,6 +366,14 @@ const isDragging = ref(false)
 const isComposing = ref(false)
 let dragCounter = 0
 
+// 浏览器支持 CSS field-sizing 时，textarea 高度交给 CSS 随内容自增，
+// 不再走 JS 量 scrollHeight —— 后者每敲一个字都强制一次同步重排，
+// 长对话（DOM 里堆着大量高亮 span / 图表）下这次重排很贵，表现为输入卡顿。
+const supportsFieldSizing =
+  typeof CSS !== 'undefined' &&
+  typeof CSS.supports === 'function' &&
+  CSS.supports('field-sizing', 'content')
+
 // —— 图片预览 —— //
 const previewVisible = ref(false)
 const previewIndex = ref(0)
@@ -465,6 +473,9 @@ function onCompositionEnd() {
 }
 
 function autoResize() {
+  // field-sizing 由 CSS 驱动高度，这里不碰 inline height、也不读 scrollHeight，
+  // 从而彻底去掉每键一次的强制重排（长对话输入卡顿的根因）。
+  if (supportsFieldSizing) return
   const el = textareaRef.value
   if (!el) return
   // 先把高度松开，量出来的 scrollHeight 才是内容真实高度。
@@ -1068,6 +1079,11 @@ defineExpose({
   flex: 1;
   min-height: 34px;
   max-height: 200px;
+  // 现代浏览器：高度随内容自增，无需 JS 量 scrollHeight（见 autoResize）。
+  // 宽度仍由 .acu-input-row 的 flex:1 决定，field-sizing 只影响块向（高度）。
+  // 老浏览器忽略这条未知属性，回落到 JS autoResize。
+  field-sizing: content;
+  overflow-y: auto;
   padding: var(--acu-space-2) var(--acu-space-1);
   border: none;
   background: transparent;

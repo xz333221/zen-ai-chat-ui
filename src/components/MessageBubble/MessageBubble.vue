@@ -371,6 +371,11 @@ const showRetryAction = computed(() => {
   display: flex;
   gap: var(--acu-space-3);
   align-items: flex-start;
+  // 视口外的消息跳过布局/绘制/样式计算：长对话里 DOM 堆着大量高亮 span / 图表，
+  // 不隔离的话每次重排（如输入框自增触发的）都要遍历整棵布局树，输入就卡。
+  // contain-intrinsic-size 的 auto 关键字会记住渲染过的真实高度，滚回来不跳。
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
   // 新消息入场：轻微上浮 + 淡入。只跑一次、只碰 transform/opacity，
   // 不参与布局；base.scss 的 prefers-reduced-motion 规则会把它压成 0.01ms。
   animation: acu-bubble-in 0.32s var(--acu-easing) both;
